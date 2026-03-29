@@ -1,0 +1,5 @@
+(library
+ (name lesson2)
+ (libraries base stdio core core_unix yojson ppx_deriving_yojson.runtime)
+ (inline_tests)
+ (preprocess (pps ppx_inline_test ppx_deriving.show ppx_deriving_yojson)))
