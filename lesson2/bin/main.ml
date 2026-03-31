@@ -530,12 +530,12 @@ let bril_non_linear_cf_label_first_dupl =
   |}
 
 let process_bril_program json =
-  let bril_program = Basic_block.parsed_bril_json json in
+  let bril_program = Bril.parsed_bril_json json in
   (* Print the parsed Bril program *)
   print_endline "Parsed Bril Program:";
   print_endline
     (Yojson.Safe.pretty_to_string
-       (Basic_block.bril_program_to_yojson bril_program));
+       (Bril.bril_program_to_yojson bril_program));
   (* Print all basic blocks *)
   let basic_blocks = Basic_block.gather_basic_blocks bril_program in
   print_endline "\nBasic Blocks:";
@@ -548,7 +548,7 @@ let process_bril_program json =
         (fun instr ->
           print_endline
             (Yojson.Safe.pretty_to_string
-               (Basic_block.bril_instruction_to_yojson instr)))
+               (Bril.bril_instruction_to_yojson instr)))
         block.instructions)
     basic_blocks
 
