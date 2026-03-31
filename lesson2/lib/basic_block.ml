@@ -6,53 +6,36 @@ type basic_block = {
   instructions : bril_instruction list;
 }
 
-let is_effect = function BrilEffectInstruction _ -> true | _ -> false
-
-let has_label = function
-  | BrilLabel _ -> true
-  | BrilValueInstruction v -> Option.is_some v.labels
-  | BrilEffectInstruction e -> Option.is_some e.labels
-  | _ -> false
-
-let is_label = function BrilLabel _ -> true | _ -> false
-
 let bbs_in_function func =
-  let rec build_bbs instrs current_bb bbs =
+  let rec build_bbs instrs curr_lbl curr_instrs bbs =
     match instrs with
-    | x :: xs -> (
-        let is_lbl = is_label x in
-        let is_new_label = is_lbl && Option.is_none current_bb.label in
-        let label_seq = is_lbl && not is_new_label in
-
-        let upd_instrs, upd_label =
-          match x with
-          | BrilLabel l -> (current_bb.instructions, Some l.label)
-          | _ -> (x :: current_bb.instructions, current_bb.label)
+    | [] ->
+        if Option.is_some curr_lbl || not (List.is_empty curr_instrs) then
+          { label = curr_lbl; instructions = List.rev curr_instrs } :: bbs
+        else bbs
+    | BrilLabel l :: rest ->
+        let bbs' =
+          if Option.is_some curr_lbl || not (List.is_empty curr_instrs) then
+            { label = curr_lbl; instructions = List.rev curr_instrs } :: bbs
+          else bbs
         in
-
-        let empty_instrs = List.is_empty upd_instrs in
-
-        ((is_effect x && has_label x) || label_seq) |> function
-        | true ->
-            let keep_label = (is_new_label && empty_instrs) || label_seq in
-            build_bbs xs
-              {
-                label = (if keep_label then upd_label else None);
-                instructions = [];
-              }
-              ({
-                 label = (if keep_label then current_bb.label else upd_label);
-                 instructions = List.rev upd_instrs;
-               }
-              :: bbs)
-        | false ->
-            build_bbs xs { label = upd_label; instructions = upd_instrs } bbs)
-    | [] -> (
-        match current_bb with
-        | { label = None; instructions = [] } -> bbs
-        | _ -> current_bb :: bbs)
+        build_bbs rest (Some l.label) [] bbs'
+    | instr :: rest ->
+        let curr_instrs' = instr :: curr_instrs in
+        let is_terminator =
+          match instr with
+          | BrilEffectInstruction { op; _ } ->
+              List.exists [ "jmp"; "br"; "ret" ] ~f:(String.equal op)
+          | _ -> false
+        in
+        if is_terminator then
+          let bbs' =
+            { label = curr_lbl; instructions = List.rev curr_instrs' } :: bbs
+          in
+          build_bbs rest None [] bbs'
+        else build_bbs rest curr_lbl curr_instrs' bbs
   in
-  build_bbs func.instrs { label = None; instructions = [] } []
+  build_bbs func.instrs None [] []
 
 let gather_basic_blocks program =
   let rec bbs_iter funcs bbs =
