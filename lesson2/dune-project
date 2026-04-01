@@ -28,6 +28,9 @@
    ppx_inline_test ; for inline tests
    yojson
    ppx_deriving_yojson
+   ppx_sexp_conv
+   ppx_compare
+   ppx_hash
  )
  (tags
   ("Cornell Advanced Compilers" "ocaml implementation" "compiler construction" "programming languages")))

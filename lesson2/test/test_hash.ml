@@ -1,8 +1,7 @@
 open Base
-open Bril
-open Basic_block
+open Lesson2.Bril
 
 let () =
-  let t = Hashtbl.create (module String) in
-  let b = Hashtbl.create (module Basic_block) in
+  let _ = Hashtbl.create (module String) in
+  let _ = Hashtbl.create (module Lesson2.Basic_block) in
   ()

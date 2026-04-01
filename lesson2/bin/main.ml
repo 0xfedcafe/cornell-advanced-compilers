@@ -536,10 +536,10 @@ let process_bril_program json =
   print_endline
     (Yojson.Safe.pretty_to_string (Bril.bril_program_to_yojson bril_program));
   (* Print all basic blocks *)
-  let basic_blocks = Basic_block.gather_basic_blocks bril_program in
+  let basic_blocks = Lesson2.Basic_block.gather_basic_blocks bril_program in
   print_endline "\nBasic Blocks:";
   List.iteri
-    (fun i block ->
+    (fun i (block : Lesson2.Basic_block.t) ->
       let label_str = match block.label with Some s -> s | None -> "none" in
       print_endline
         (Printf.sprintf "Basic Block %d, label .%s:" (i + 1) label_str);

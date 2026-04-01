@@ -5,7 +5,9 @@
   test_bbs
   test_parse
   test_empty_cfg
-  test_naming)
+  test_naming
+  test_compile
+  test_hash)
  (libraries
   lesson2
   base
@@ -14,4 +16,11 @@
  (preprocess
   (pps
    ppx_deriving_yojson
-   ppx_deriving.show)))
+   ppx_compare
+   ppx_hash
+   ppx_sexp_conv
+   ppx_deriving.show))
+ (flags
+  :standard
+  -warn-error
+  -a))
