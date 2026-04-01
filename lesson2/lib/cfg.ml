@@ -49,8 +49,7 @@ module CFG = struct
     Buffer.contents buf
 end
 
-let build_cfg program =
-  let bbs = Basic_block.gather_basic_blocks program in
+let build_cfg bbs =
   let cfg = CFG.create () in
   let label_to_id = Hashtbl.create (module String) in
 

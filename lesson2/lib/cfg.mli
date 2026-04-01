@@ -1,5 +1,4 @@
 open Base
-open Bril
 open Basic_block
 
 module CFG : sig
@@ -18,5 +17,5 @@ module CFG : sig
   val to_dot : t -> string
 end
 
-val build_cfg : bril_program -> CFG.t
+val build_cfg : basic_block list -> CFG.t
 val to_dot : CFG.t -> string

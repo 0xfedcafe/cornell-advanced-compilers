@@ -2,6 +2,8 @@ open Base
 
 type bril_label = { label : string } [@@deriving yojson, compare, hash, sexp]
 
+val bril_label_to_string : bril_label -> string
+
 type bril_immediate = BrilBool of bool | BrilInt of int
 [@@deriving compare, hash, sexp]
 
@@ -9,6 +11,7 @@ val bril_immediate_of_yojson :
   Yojson.Safe.t -> (bril_immediate, string) Result.t
 
 val bril_immediate_to_yojson : bril_immediate -> Yojson.Safe.t
+val bril_immediate_to_string : bril_immediate -> string
 
 type bril_type =
   | BrilType of string
@@ -17,6 +20,7 @@ type bril_type =
 
 val bril_type_of_yojson : Yojson.Safe.t -> (bril_type, string) Result.t
 val bril_type_to_yojson : bril_type -> Yojson.Safe.t
+val bril_type_to_string : bril_type -> string
 
 type bril_const_instruction = {
   op : string;
@@ -25,6 +29,9 @@ type bril_const_instruction = {
   value : bril_immediate;
 }
 [@@deriving yojson, compare, hash, sexp]
+
+val bril_const_instruction_of_yojson :
+  Yojson.Safe.t -> (bril_const_instruction, string) Result.t
 
 type bril_value_instruction = {
   op : string;
@@ -36,6 +43,9 @@ type bril_value_instruction = {
 }
 [@@deriving yojson, compare, hash, sexp]
 
+val bril_value_instruction_of_yojson :
+  Yojson.Safe.t -> (bril_value_instruction, string) Result.t
+
 type bril_effect_instruction = {
   op : string;
   args : string list option; [@default None]
@@ -43,6 +53,9 @@ type bril_effect_instruction = {
   labels : string list option; [@default None]
 }
 [@@deriving yojson, compare, hash, sexp]
+
+val bril_effect_instruction_of_yojson :
+  Yojson.Safe.t -> (bril_effect_instruction, string) Result.t
 
 type bril_instruction =
   | BrilLabel of bril_label
@@ -55,9 +68,12 @@ val bril_instruction_of_yojson :
   Yojson.Safe.t -> (bril_instruction, string) Result.t
 
 val bril_instruction_to_yojson : bril_instruction -> Yojson.Safe.t
+val bril_instruction_to_string : bril_instruction -> string
 
 type bril_arg = { name : string; typ : bril_type [@key "type"] }
 [@@deriving yojson, compare, hash, sexp]
+
+val bril_arg_to_string : bril_arg -> string
 
 type bril_function = {
   name : string;
@@ -67,6 +83,10 @@ type bril_function = {
 }
 [@@deriving yojson, compare, hash, sexp]
 
+val bril_function_of_yojson : Yojson.Safe.t -> (bril_function, string) Result.t
+val bril_function_to_string : bril_function -> string
+
 type bril_program = { functions : bril_function list } [@@deriving yojson]
 
+val bril_program_to_string : bril_program -> string
 val parsed_bril_json : string -> bril_program

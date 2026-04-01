@@ -1,6 +1,4 @@
-open Base
 open Lesson2
-open Lesson2.Basic_block
 
 let bril_single_unnamed_block =
   {|
@@ -23,6 +21,7 @@ let bril_single_unnamed_block =
 
 let () =
   let program = Bril.parsed_bril_json bril_single_unnamed_block in
-  let cfg = Cfg.build_cfg program in
+  let bbs = Lesson2.Basic_block.gather_basic_blocks program in
+  let cfg = Cfg.build_cfg bbs in
   let dot = Cfg.to_dot cfg in
   Stdio.printf "%s\n" dot
