@@ -1,4 +1,4 @@
 open Cfg
 open Base
 
-val dce_Pass : CFG.t -> unit
+val dce_pass : CFG.t -> unit

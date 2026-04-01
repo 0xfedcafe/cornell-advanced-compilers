@@ -15,7 +15,7 @@ let process_bril_file filename =
   let cfg = Cfg.build_cfg all_bbs in
 
   (* Run the DCE pass *)
-  Lesson2.Dce.dce_Pass cfg;
+  Lesson2.Dce.dce_pass cfg;
 
   (* Reconstruct functions from CFG *)
   let optimized_functions =

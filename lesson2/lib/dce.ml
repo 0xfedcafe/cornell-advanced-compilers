@@ -3,7 +3,7 @@ open Base
 open Bril
 open Basic_block
 
-let dce_Pass (cfg : CFG.t) : unit =
+let dce_pass (cfg : CFG.t) : unit =
   let bbs = cfg.nodes in
 
   let handle_block ~key:bb_id ~data:(bb : basic_block) : bool =
@@ -48,11 +48,8 @@ let dce_Pass (cfg : CFG.t) : unit =
   let rec handle_block_iter ~key:bb_id =
     let bb = Hashtbl.find_exn cfg.nodes bb_id in
     let changed = handle_block ~key:bb_id ~data:bb in
-    if changed then
-      (handle_block_iter [@tailcall]) ~key:bb_id
-    else ()
+    if changed then (handle_block_iter [@tailcall]) ~key:bb_id else ()
   in
 
   let bb_keys = Hashtbl.keys bbs in
-  List.iter bb_keys ~f:(fun bb_id ->
-      handle_block_iter ~key:bb_id)
+  List.iter bb_keys ~f:(fun bb_id -> handle_block_iter ~key:bb_id)
