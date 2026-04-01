@@ -1,7 +1,9 @@
 open Base
 
-type bril_label = { label : string } [@@deriving yojson]
+type bril_label = { label : string } [@@deriving yojson, compare, hash, sexp]
+
 type bril_immediate = BrilBool of bool | BrilInt of int
+[@@deriving compare, hash, sexp]
 
 let bril_immediate_of_yojson = function
   | `Bool b -> Ok (BrilBool b)
@@ -15,6 +17,7 @@ let bril_immediate_to_yojson = function
 type bril_type =
   | BrilType of string
   | BrilStructType of (string * bril_type) list
+[@@deriving compare, hash, sexp]
 
 let rec bril_type_of_yojson = function
   | `String s -> Ok (BrilType s)
@@ -40,7 +43,7 @@ type bril_const_instruction = {
   typ : bril_type; [@key "type"]
   value : bril_immediate;
 }
-[@@deriving yojson]
+[@@deriving yojson, compare, hash, sexp]
 
 type bril_value_instruction = {
   op : string;
@@ -50,7 +53,7 @@ type bril_value_instruction = {
   funcs : string list option; [@default None]
   labels : string list option; [@default None]
 }
-[@@deriving yojson]
+[@@deriving yojson, compare, hash, sexp]
 
 type bril_effect_instruction = {
   op : string;
@@ -58,13 +61,14 @@ type bril_effect_instruction = {
   funcs : string list option; [@default None]
   labels : string list option; [@default None]
 }
-[@@deriving yojson]
+[@@deriving yojson, compare, hash, sexp]
 
 type bril_instruction =
   | BrilLabel of bril_label
   | BrilConstInstruction of bril_const_instruction
   | BrilValueInstruction of bril_value_instruction
   | BrilEffectInstruction of bril_effect_instruction
+[@@deriving compare, hash, sexp]
 
 let bril_instruction_of_yojson (json : Yojson.Safe.t) :
     (bril_instruction, string) Result.t =
@@ -101,7 +105,7 @@ let bril_instruction_to_yojson = function
   | BrilEffectInstruction e -> bril_effect_instruction_to_yojson e
 
 type bril_arg = { name : string; typ : bril_type [@key "type"] }
-[@@deriving yojson]
+[@@deriving yojson, compare, hash, sexp]
 
 type bril_function = {
   name : string;
@@ -109,7 +113,7 @@ type bril_function = {
   typ : bril_type option; [@key "type"] [@default None]
   instrs : bril_instruction list;
 }
-[@@deriving yojson]
+[@@deriving yojson, compare, hash, sexp]
 
 type bril_program = { functions : bril_function list } [@@deriving yojson]
 

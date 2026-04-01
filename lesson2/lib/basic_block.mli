@@ -5,6 +5,12 @@ type basic_block = {
   label : string option;
   instructions : bril_instruction list;
 }
+[@@deriving compare, hash, sexp]
 
-val gather_basic_blocks : bril_program -> basic_block list
-val build_cfg : bril_program -> (basic_block, basic_block list) Hashtbl.t
+module Basic_block : sig
+  type t = basic_block [@@deriving compare, hash, sexp]
+  type id = private int [@@deriving compare, equal, hash]
+
+  val bbs_in_function : bril_function -> basic_block list
+  val gather_basic_blocks : bril_program -> basic_block list
+end

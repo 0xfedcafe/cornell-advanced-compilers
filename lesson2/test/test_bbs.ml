@@ -12,7 +12,7 @@ let () =
       BrilEffectInstruction { op = "nop2"; args = None; funcs = None; labels = None };
     ]
   } in
-  let bbs = bbs_in_function func in
+  let bbs = Basic_block.bbs_in_function func in
   List.iter bbs ~f:(fun bb ->
     Stdio.printf "Block label: %s\n" (Option.value ~default:"None" bb.label);
     List.iter bb.instructions ~f:(fun instr ->

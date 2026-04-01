@@ -534,8 +534,7 @@ let process_bril_program json =
   (* Print the parsed Bril program *)
   print_endline "Parsed Bril Program:";
   print_endline
-    (Yojson.Safe.pretty_to_string
-       (Bril.bril_program_to_yojson bril_program));
+    (Yojson.Safe.pretty_to_string (Bril.bril_program_to_yojson bril_program));
   (* Print all basic blocks *)
   let basic_blocks = Basic_block.gather_basic_blocks bril_program in
   print_endline "\nBasic Blocks:";
@@ -550,7 +549,9 @@ let process_bril_program json =
             (Yojson.Safe.pretty_to_string
                (Bril.bril_instruction_to_yojson instr)))
         block.instructions)
-    basic_blocks
+    basic_blocks;
+
+  Cfg.build_cfg bril_program |> Cfg.to_dot |> print_endline
 
 let () =
   process_bril_program bril_add_json;

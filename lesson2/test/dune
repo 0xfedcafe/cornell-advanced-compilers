@@ -1,2 +1,17 @@
-(test
- (name test_lesson2))
+(tests
+ (names
+  test_lesson2
+  test_basic_block
+  test_bbs
+  test_parse
+  test_empty_cfg
+  test_naming)
+ (libraries
+  lesson2
+  base
+  stdio
+  yojson)
+ (preprocess
+  (pps
+   ppx_deriving_yojson
+   ppx_deriving.show)))
