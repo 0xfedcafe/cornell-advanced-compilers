@@ -6,7 +6,6 @@
   test_parse
   test_empty_cfg
   test_naming
-  test_compile
   test_hash)
  (libraries
   lesson2

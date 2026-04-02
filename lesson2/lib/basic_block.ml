@@ -16,7 +16,7 @@ end
 type t = {
   id : id;
   label : string option;
-  instructions : bril_instruction list;
+  instructions : bril_ir_instruction list;
 }
 [@@deriving compare, hash, sexp]
 
@@ -39,7 +39,7 @@ let bbs_in_function func =
           }
           :: bbs
         else bbs
-    | BrilLabel l :: rest ->
+    | Label l :: rest ->
         let bbs' =
           if Option.is_some curr_lbl || not (List.is_empty curr_instrs) then
             {
@@ -55,8 +55,7 @@ let bbs_in_function func =
         let curr_instrs' = instr :: curr_instrs in
         let is_terminator =
           match instr with
-          | BrilEffectInstruction { op; _ } ->
-              List.exists [ "jmp"; "br"; "ret" ] ~f:(String.equal op)
+          | Control (Jump _ | Branch _ | Return _) -> true
           | _ -> false
         in
         if is_terminator then

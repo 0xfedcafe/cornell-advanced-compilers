@@ -112,6 +112,9 @@ type bin_op = { dst : string; src1 : string; src2 : string }
 
 type un_op = { dst : string; src1 : string } [@@deriving compare, hash, sexp]
 
+type const_op = { dst : string; value : bril_immediate }
+[@@deriving compare, hash, sexp]
+
 type bril_arithm_instr =
   | Add of bin_op
   | Sub of bin_op
@@ -165,10 +168,16 @@ let bril_logic_of_value_instr = function
       Some (Or { dst = dest; src1; src2 })
   | _ -> None
 
+type bril_const_instr = Const of const_op [@@deriving compare, hash, sexp]
+
+let bril_const_of_const_instr = function
+  | { op = "const"; dest; typ = _; value } -> Some (Const { dst = dest; value })
+  | _ -> None
+
 type bril_control_instr =
   | Jump of bril_label
   | Branch of { cond : string; iftrue : bril_label; iffalse : bril_label }
-  | Call of { name : string; arg : string list option }
+  | Call of { name : string; arg : string list option; dst : string option }
   | Return of bril_immediate option
 [@@deriving compare, hash, sexp]
 
@@ -179,8 +188,13 @@ let bril_control_of_effect_instr = function
         (Branch
            { cond; iftrue = { label = iftrue }; iffalse = { label = iffalse } })
   | { op = "call"; funcs = Some [ name ]; args; _ } ->
-      Some (Call { name; arg = args })
+      Some (Call { name; arg = args; dst = None })
   | { op = "ret"; args = _; _ } -> Some (Return None)
+  | _ -> None
+
+let bril_call_of_value_instr = function
+  | { op = "call"; funcs = Some [ name ]; args; dest; _ } ->
+      Some (Call { name; arg = args; dst = Some dest })
   | _ -> None
 
 type bril_misc_instr =
@@ -201,6 +215,138 @@ type bril_ir_instruction =
   | Arithm of bril_arithm_instr
   | Comp of bril_comp_instr
   | Logic of bril_logic_instr
+  | Const of bril_const_instr
   | Control of bril_control_instr
+  | Label of bril_label
   | Misc of bril_misc_instr
 [@@deriving compare, hash, sexp]
+
+let bril_ir_instruction_to_string = function
+  | Arithm a -> (
+      match a with
+      | Add { dst; src1; src2 } ->
+          Printf.sprintf "%s: int = add %s %s" dst src1 src2
+      | Sub { dst; src1; src2 } ->
+          Printf.sprintf "%s: int = sub %s %s" dst src1 src2
+      | Mul { dst; src1; src2 } ->
+          Printf.sprintf "%s: int = mul %s %s" dst src1 src2
+      | Div { dst; src1; src2 } ->
+          Printf.sprintf "%s: int = div %s %s" dst src1 src2)
+  | Comp c -> (
+      match c with
+      | Eq { dst; src1; src2 } ->
+          Printf.sprintf "eq %s = %s == %s" dst src1 src2
+      | Lt { dst; src1; src2 } -> Printf.sprintf "lt %s = %s < %s" dst src1 src2
+      | Gt { dst; src1; src2 } -> Printf.sprintf "gt %s = %s > %s" dst src1 src2
+      | Le { dst; src1; src2 } ->
+          Printf.sprintf "le %s = %s <= %s" dst src1 src2
+      | Ge { dst; src1; src2 } ->
+          Printf.sprintf "ge %s = %s >= %s" dst src1 src2)
+  | Logic l -> (
+      match l with
+      | Not { dst; src1 } -> Printf.sprintf "not %s = !%s" dst src1
+      | And { dst; src1; src2 } ->
+          Printf.sprintf "and %s = %s && %s" dst src1 src2
+      | Or { dst; src1; src2 } ->
+          Printf.sprintf "or %s = %s || %s" dst src1 src2)
+  | Const (Const { dst; value }) ->
+      let typ = match value with BrilInt _ -> "int" | BrilBool _ -> "bool" in
+      let imm_str = bril_immediate_to_string value in
+      Printf.sprintf "%s: %s = const %s" dst typ imm_str
+  | Control c -> (
+      match c with
+      | Jump lbl -> Printf.sprintf "jmp .%s" lbl.label
+      | Branch { cond; iftrue; iffalse } ->
+          Printf.sprintf "br %s .%s . %s" cond iftrue.label iffalse.label
+      | Call { name; arg; dst } ->
+          let args_str =
+            match arg with
+            | Some args when not (List.is_empty args) ->
+                " " ^ String.concat ~sep:" " args
+            | _ -> ""
+          in
+          let dst_str =
+            match dst with Some d -> Printf.sprintf " %s = " d | None -> ""
+          in
+          Printf.sprintf "call %s@%s(%s)" dst_str name args_str
+      | Return None -> " ret "
+      | Return (Some arg) ->
+          Printf.sprintf " ret %s" (bril_immediate_to_string arg))
+  | Label l -> Printf.sprintf ".%s" l.label
+  | Misc m -> (
+      match m with
+      | Identity { dst; src } -> Printf.sprintf "id %s = %s" dst src
+      | Print args ->
+          let args_str =
+            if not (List.is_empty args) then " " ^ String.concat ~sep:" " args
+            else ""
+          in
+          Printf.sprintf "print%s" args_str
+      | Nop -> "nop")
+
+let bril_ir_instruction_from_instruction = function
+  | BrilValueInstruction v -> (
+      match bril_arithm_of_value_instr v with
+      | Some a -> Arithm a
+      | None -> (
+          match bril_comp_of_value_instr v with
+          | Some c -> Comp c
+          | None -> (
+              match bril_logic_of_value_instr v with
+              | Some l -> Logic l
+              | None -> (
+                  match bril_call_of_value_instr v with
+                  | Some c -> Control c
+                  | None -> failwith "Invalid value instruction"))))
+  | BrilEffectInstruction e -> (
+      match bril_control_of_effect_instr e with
+      | Some c -> Control c
+      | None -> (
+          match bril_misc_of_effect_instr e with
+          | Some m -> Misc m
+          | None -> failwith "Invalid effect instruction"))
+  | BrilConstInstruction c -> (
+      let converted = bril_const_of_const_instr c in
+      match converted with
+      | Some const -> Const const
+      | None -> failwith "Invalid const instruction")
+  | BrilLabel l -> Label l
+
+let bril_ir_instr_get_dest = function
+  | Arithm (Add { dst; _ } | Sub { dst; _ } | Mul { dst; _ } | Div { dst; _ })
+    ->
+      Some dst
+  | Comp
+      ( Eq { dst; _ }
+      | Lt { dst; _ }
+      | Gt { dst; _ }
+      | Le { dst; _ }
+      | Ge { dst; _ } ) ->
+      Some dst
+  | Logic (Not { dst; _ }) -> Some dst
+  | Logic (And { dst; _ } | Or { dst; _ }) -> Some dst
+  | Const (Const { dst; _ }) -> Some dst
+  | Misc (Identity { dst; _ }) -> Some dst
+  | _ -> None
+
+let bril_ir_instr_get_args = function
+  | Arithm
+      ( Add { src1; src2; _ }
+      | Sub { src1; src2; _ }
+      | Mul { src1; src2; _ }
+      | Div { src1; src2; _ } ) ->
+      [ src1; src2 ]
+  | Comp
+      ( Eq { src1; src2; _ }
+      | Lt { src1; src2; _ }
+      | Gt { src1; src2; _ }
+      | Le { src1; src2; _ }
+      | Ge { src1; src2; _ } ) ->
+      [ src1; src2 ]
+  | Logic (Not { src1; _ }) -> [ src1 ]
+  | Logic (And { src1; src2; _ } | Or { src1; src2; _ }) -> [ src1; src2 ]
+  | Control (Branch { cond; _ }) -> [ cond ]
+  | Control (Call { arg = Some args; _ }) -> args
+  | Misc (Identity { src; _ }) -> [ src ]
+  | Misc (Print args) -> args
+  | _ -> []

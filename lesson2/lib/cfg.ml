@@ -35,7 +35,9 @@ module CFG = struct
           | Some l -> Printf.sprintf ".%s" l
           | None -> "none"
         in
+
         Buffer.add_string buf (Printf.sprintf "  \"%s\";\n" label_str);
+
         List.iter edges.succs ~f:(fun succ_id ->
             let succ_bb = Hashtbl.find_exn t.nodes succ_id in
             let succ_label_str =
@@ -63,32 +65,23 @@ let build_cfg bbs =
 
   let handle_instr_edge bb instr =
     match instr with
-    | BrilEffectInstruction e -> (
-        match e.labels with
-        | None -> false
-        | Some ls -> (
-            match e.op with
-            | "jmp" -> (
-                match List.hd ls with
-                | Some v ->
-                    Hashtbl.find label_to_id v
-                    |> Option.iter ~f:(fun dst_id ->
-                        CFG.add_edge cfg ~src:bb.id ~dst:dst_id);
-                    false
-                | None -> failwith "wrong jmp instruction")
-            | "br" -> (
-                match ls with
-                | br1 :: br2 :: _ ->
-                    Hashtbl.find label_to_id br1
-                    |> Option.iter ~f:(fun dst_id ->
-                        CFG.add_edge cfg ~src:bb.id ~dst:dst_id);
-                    Hashtbl.find label_to_id br2
-                    |> Option.iter ~f:(fun dst_id ->
-                        CFG.add_edge cfg ~src:bb.id ~dst:dst_id);
-                    false
-                | _ -> failwith "wrong br instruction")
-            | "ret" -> false
-            | _ -> true))
+    | Control c -> (
+        match c with
+        | Jump lbl ->
+            Hashtbl.find label_to_id lbl.label
+            |> Option.iter ~f:(fun dst_id ->
+                CFG.add_edge cfg ~src:bb.id ~dst:dst_id);
+            false
+        | Branch { iftrue; iffalse; _ } ->
+            Hashtbl.find label_to_id iftrue.label
+            |> Option.iter ~f:(fun dst_id ->
+                CFG.add_edge cfg ~src:bb.id ~dst:dst_id);
+            Hashtbl.find label_to_id iffalse.label
+            |> Option.iter ~f:(fun dst_id ->
+                CFG.add_edge cfg ~src:bb.id ~dst:dst_id);
+            false
+        | Return _ -> false
+        | Call _ -> true)
     | _ -> true
   in
 

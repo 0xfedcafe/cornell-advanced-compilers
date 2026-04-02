@@ -1,4 +1,6 @@
 open Base
+open Bril_label
+open Bril_immediate
 
 type bril_const_instruction = {
   op : string;
@@ -53,6 +55,9 @@ type bin_op = { dst : string; src1 : string; src2 : string }
 
 type un_op = { dst : string; src1 : string } [@@deriving compare, hash, sexp]
 
+type const_op = { dst : string; value : bril_immediate }
+[@@deriving compare, hash, sexp]
+
 type bril_arithm_instr =
   | Add of bin_op
   | Sub of bin_op
@@ -79,6 +84,11 @@ type bril_logic_instr = Not of un_op | And of bin_op | Or of bin_op
 val bril_logic_of_value_instr :
   bril_value_instruction -> bril_logic_instr option
 
+type bril_const_instr = Const of const_op [@@deriving compare, hash, sexp]
+
+val bril_const_of_const_instr :
+  bril_const_instruction -> bril_const_instr option
+
 type bril_control_instr =
   | Jump of Bril_label.bril_label
   | Branch of {
@@ -86,11 +96,14 @@ type bril_control_instr =
       iftrue : Bril_label.bril_label;
       iffalse : Bril_label.bril_label;
     }
-  | Call of { name : string; arg : string list option }
+  | Call of { name : string; arg : string list option; dst : string option }
   | Return of Bril_immediate.bril_immediate option
 
 val bril_control_of_effect_instr :
   bril_effect_instruction -> bril_control_instr option
+
+val bril_call_of_value_instr :
+  bril_value_instruction -> bril_control_instr option
 
 type bril_misc_instr =
   | Identity of { dst : string; src : string }
@@ -105,6 +118,16 @@ type bril_ir_instruction =
   | Arithm of bril_arithm_instr
   | Comp of bril_comp_instr
   | Logic of bril_logic_instr
+  | Const of bril_const_instr
   | Control of bril_control_instr
+  | Label of bril_label
   | Misc of bril_misc_instr
 [@@deriving compare, hash, sexp]
+
+val bril_ir_instruction_to_string : bril_ir_instruction -> string
+
+val bril_ir_instruction_from_instruction :
+  bril_instruction -> bril_ir_instruction
+
+val bril_ir_instr_get_dest : bril_ir_instruction -> string option
+val bril_ir_instr_get_args : bril_ir_instruction -> string list

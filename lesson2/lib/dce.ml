@@ -11,30 +11,21 @@ let dce_pass (cfg : CFG.t) : unit =
     let optimised_instrs =
       List.fold_left (List.rev bb.instructions) ~init:[] ~f:(fun acc instr ->
           let is_dead =
-            match instr with
-            | BrilValueInstruction v -> Hashtbl.mem defined_later v.dest
-            | BrilConstInstruction c -> Hashtbl.mem defined_later c.dest
-            | _ -> false
+            match bril_ir_instr_get_dest instr with
+            | Some dst -> Hashtbl.mem defined_later dst
+            | None -> false
           in
           if is_dead then acc
           else begin
             (* Mark written: if we keep it, it becomes the 'latest' definition in reverse order *)
-            (match instr with
-            | BrilValueInstruction v ->
-                Hashtbl.set defined_later ~key:v.dest ~data:()
-            | BrilConstInstruction c ->
-                Hashtbl.set defined_later ~key:c.dest ~data:()
-            | _ -> ());
+            (match bril_ir_instr_get_dest instr with
+            | Some dst -> Hashtbl.set defined_later ~key:dst ~data:()
+            | None -> ());
 
             (* Mark used: using a variable means earlier definitions are NO LONGER dead *)
-            (match instr with
-            | BrilValueInstruction v ->
-                Option.iter v.args
-                  ~f:(List.iter ~f:(Hashtbl.remove defined_later))
-            | BrilEffectInstruction e ->
-                Option.iter e.args
-                  ~f:(List.iter ~f:(Hashtbl.remove defined_later))
-            | _ -> ());
+            List.iter
+              (bril_ir_instr_get_args instr)
+              ~f:(Hashtbl.remove defined_later);
 
             instr :: acc
           end)

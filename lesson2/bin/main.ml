@@ -4,10 +4,11 @@ open Lesson2.Basic_block
 let process_bril_file filename =
   let json = Stdio.In_channel.read_all filename in
   let bril_program = Bril.parsed_bril_json json in
+  let bril_ir_program = Bril.from_tokens bril_program in
 
   (* Extract bbs for each function once so IDs match later *)
   let funcs_with_bbs =
-    Base.List.map bril_program.functions ~f:(fun func ->
+    Base.List.map bril_ir_program.functions ~f:(fun func ->
         (func, Lesson2.Basic_block.bbs_in_function func))
   in
   let all_bbs = Base.List.concat_map funcs_with_bbs ~f:snd in
@@ -31,7 +32,7 @@ let process_bril_file filename =
                       when not
                              (Base.String.is_prefix ~prefix:func.name l
                              && Base.String.is_substring ~substring:"_b" l) ->
-                        [ Bril.BrilLabel { label = l } ]
+                        [ Bril.Label { label = l } ]
                     | Some _ | None -> []
                   in
                   label_instr @ optimized_bb.instructions
@@ -40,10 +41,7 @@ let process_bril_file filename =
         { func with instrs = optimized_instrs })
   in
   let optimized_program = { Bril.functions = optimized_functions } in
-  print_endline
-    (Yojson.Safe.pretty_to_string
-       (Bril.bril_program_to_yojson optimized_program));
-  print_endline (Bril.bril_program_to_string optimized_program)
+  print_endline (Bril.bril_ir_program_to_string optimized_program)
 
 let () =
   print_string "Enter JSON filename: ";

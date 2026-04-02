@@ -7,8 +7,8 @@ let () =
     args = None;
     typ = None;
     instrs = [
-      BrilEffectInstruction { op = "nop"; args = None; funcs = None; labels = None };
-      BrilEffectInstruction { op = "nop2"; args = None; funcs = None; labels = None };
+      Misc Nop;
+      Misc Nop;
     ]
   } in
   let bbs = Lesson2.Basic_block.bbs_in_function func in
@@ -16,7 +16,7 @@ let () =
     Stdio.printf "Block label: %s\n" (Option.value ~default:"None" bb.label);
     List.iter bb.instructions ~f:(fun instr ->
       match instr with
-      | BrilEffectInstruction e -> Stdio.printf "  Instr: %s\n" e.op
+      | Misc Nop -> Stdio.printf "  Instr: nop\n"
       | _ -> ()
     )
   )

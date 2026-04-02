@@ -25,3 +25,5 @@ type bril_ir_function = {
   instrs : bril_ir_instruction list;
 }
 [@@deriving compare, hash, sexp]
+
+val bril_ir_function_to_string : bril_ir_function -> string

@@ -1,8 +1,8 @@
 open Base
 open Bril_function
+open Bril_instruction
 
-type bril_program = { functions : Bril_function.bril_function list }
-[@@deriving yojson]
+type bril_program = { functions : bril_function list } [@@deriving yojson]
 
 let bril_program_to_string { functions } =
   String.concat ~sep:"\n\n"
@@ -15,4 +15,19 @@ let parsed_bril_json bril_string =
   | Ok program -> program
   | Error err -> failwith ("Error parsing Bril JSON: " ^ err)
 
-type bril_ir_program = { functions : Bril_function.bril_ir_function list }
+type bril_ir_program = { functions : bril_ir_function list }
+
+let from_tokens (prog : bril_program) : bril_ir_program =
+  let ir_functions =
+    List.map prog.functions ~f:(fun f ->
+        let ir_instrs =
+          List.map f.instrs ~f:(fun instr ->
+              bril_ir_instruction_from_instruction instr)
+        in
+        { name = f.name; args = f.args; typ = f.typ; instrs = ir_instrs })
+  in
+  { functions = ir_functions }
+
+let bril_ir_program_to_string { functions } =
+  String.concat ~sep:"\n\n"
+    (List.map ~f:Bril_function.bril_ir_function_to_string functions)
