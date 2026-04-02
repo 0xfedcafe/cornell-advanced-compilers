@@ -7,29 +7,27 @@ let dce_pass (cfg : CFG.t) : unit =
   let bbs = cfg.nodes in
 
   let handle_block ~key:bb_id ~data:(bb : basic_block) : bool =
-    let defined_later = Hashtbl.create (module String) in
-    let optimised_instrs =
-      List.fold_left (List.rev bb.instructions) ~init:[] ~f:(fun acc instr ->
-          let is_dead =
-            match bril_ir_instr_get_dest instr with
-            | Some dst -> Hashtbl.mem defined_later dst
-            | None -> false
-          in
-          if is_dead then acc
-          else begin
-            (* Mark written: if we keep it, it becomes the 'latest' definition in reverse order *)
-            (match bril_ir_instr_get_dest instr with
-            | Some dst -> Hashtbl.set defined_later ~key:dst ~data:()
+    let last_def = Hashtbl.create (module String) in
+    let for_removal = Hashtbl.create (module Id) in
+
+    List.iteri bb.instructions ~f:(fun idx instr ->
+        (* Mark used *)
+        List.iter (bril_ir_instr_get_args instr) ~f:(Hashtbl.remove last_def);
+
+        (* Mark written *)
+        match bril_ir_instr_get_dest instr with
+        | Some dst ->
+            (match Hashtbl.find last_def dst with
+            | Some prev_use -> Hashtbl.set for_removal ~key:prev_use ~data:()
             | None -> ());
+            Hashtbl.set last_def ~key:dst ~data:idx
+        | None -> ());
 
-            (* Mark used: using a variable means earlier definitions are NO LONGER dead *)
-            List.iter
-              (bril_ir_instr_get_args instr)
-              ~f:(Hashtbl.remove defined_later);
-
-            instr :: acc
-          end)
+    let optimised_instrs =
+      List.filteri bb.instructions ~f:(fun idx _ ->
+          not (Hashtbl.mem for_removal idx))
     in
+
     let changed = List.length optimised_instrs <> List.length bb.instructions in
     let new_block = { bb with instructions = optimised_instrs } in
     Hashtbl.set cfg.nodes ~key:bb_id ~data:new_block;
