@@ -18,6 +18,15 @@ let process_bril_file filename =
   (* Run the DCE pass *)
   Lesson2.Dce.dce_pass cfg;
 
+  (* Run the LVN pass *)
+  Lesson2.Lvn.lvn_pass cfg;
+
+  (* Run the DCE pass *)
+  Lesson2.Dce.dce_pass cfg;
+
+  (* Run the Global Unused Pass *)
+  Lesson2.Global_unused_pass.global_unused_pass cfg;
+
   (* Reconstruct functions from CFG *)
   let optimized_functions =
     Base.List.map funcs_with_bbs ~f:(fun (func, bbs) ->

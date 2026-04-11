@@ -49,6 +49,8 @@ module CFG = struct
               (Printf.sprintf "  \"%s\" -> \"%s\";\n" label_str succ_label_str)));
     Buffer.add_string buf "}\n";
     Buffer.contents buf
+
+  let replace_node t ~id ~new_bb = Hashtbl.set t.nodes ~key:id ~data:new_bb
 end
 
 let build_cfg bbs =

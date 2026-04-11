@@ -15,6 +15,7 @@ module CFG : sig
   val create : unit -> t
   val add_edge : t -> src:Basic_block.id -> dst:Basic_block.id -> unit
   val to_dot : t -> string
+  val replace_node : t -> id:Basic_block.id -> new_bb:basic_block -> unit
 end
 
 val build_cfg : basic_block list -> CFG.t

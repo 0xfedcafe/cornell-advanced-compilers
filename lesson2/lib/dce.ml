@@ -12,10 +12,10 @@ let dce_pass (cfg : CFG.t) : unit =
 
     List.iteri bb.instructions ~f:(fun idx instr ->
         (* Mark used *)
-        List.iter (bril_ir_instr_get_args instr) ~f:(Hashtbl.remove last_def);
+        List.iter (get_args instr) ~f:(Hashtbl.remove last_def);
 
         (* Mark written *)
-        match bril_ir_instr_get_dest instr with
+        match get_dest instr with
         | Some dst ->
             (match Hashtbl.find last_def dst with
             | Some prev_use -> Hashtbl.set for_removal ~key:prev_use ~data:()

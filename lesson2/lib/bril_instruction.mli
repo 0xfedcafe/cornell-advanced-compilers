@@ -129,5 +129,11 @@ val bril_ir_instruction_to_string : bril_ir_instruction -> string
 val bril_ir_instruction_from_instruction :
   bril_instruction -> bril_ir_instruction
 
-val bril_ir_instr_get_dest : bril_ir_instruction -> string option
-val bril_ir_instr_get_args : bril_ir_instruction -> string list
+val get_dest : bril_ir_instruction -> string option
+val replace_dst : bril_ir_instruction -> string -> bril_ir_instruction
+
+val replace_args :
+  bril_ir_instruction -> (string -> string) -> bril_ir_instruction
+
+val get_args : bril_ir_instruction -> string list
+val string_of_op : bril_ir_instruction -> string
