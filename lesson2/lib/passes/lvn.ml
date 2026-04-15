@@ -34,6 +34,14 @@ let lvn_pass (cfg : CFG.t) : unit =
     (* variable name -> times written *)
     let def_counts = Hashtbl.create (module String) in
 
+    (*
+       Can be significantly improved by using a hashtable where an entry contains table entry as a key and
+       a list of variable names, where first is canonical name and others are "synonyms", it's useful when
+       doing copy propagation due to clobbering, this **hint** was taken from bril/examples/lvn.py repo.
+       Also renaming all variables to "lvn.n" format is not necessary, we can just keep the original name
+       for canonical variables and only rename clobbered ones, but it makes debugging easier if all variables
+       are renamed to a consistent format. I'm just dumb and it's impossible to program in this language.
+    *)
     List.iter bb.instructions ~f:(fun instr ->
         match get_dest instr with
         | Some dest -> Hashtbl.incr def_counts dest
@@ -44,7 +52,7 @@ let lvn_pass (cfg : CFG.t) : unit =
     in
 
     let new_instrs =
-      List.fold bb.instructions ~init:[] ~f:(fun acc instr ->
+      List.fold_left bb.instructions ~init:[] ~f:(fun acc instr ->
           let canon_instr = replace_args instr get_canon in
 
           match get_dest canon_instr with

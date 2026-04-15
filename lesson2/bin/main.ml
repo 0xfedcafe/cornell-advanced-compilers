@@ -15,6 +15,9 @@ let process_bril_file filename =
 
   let cfg = Cfg.build_cfg all_bbs in
 
+  (* Run the Global Unused Pass *)
+  Lesson2.Global_unused_pass.global_unused_pass cfg;
+
   (* Run the DCE pass *)
   Lesson2.Dce.dce_pass cfg;
 

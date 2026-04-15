@@ -114,6 +114,8 @@ type bril_misc_instr =
 val bril_misc_of_effect_instr :
   bril_effect_instruction -> bril_misc_instr option
 
+val bril_misc_of_value_instr : bril_value_instruction -> bril_misc_instr option
+
 type bril_ir_instruction =
   | Arithm of bril_arithm_instr
   | Comp of bril_comp_instr

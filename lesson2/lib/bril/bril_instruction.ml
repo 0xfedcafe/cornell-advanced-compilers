@@ -203,6 +203,13 @@ type bril_misc_instr =
   | Nop
 [@@deriving compare, hash, sexp]
 
+let bril_misc_of_value_instr = function
+  | { op = "id"; dest = dest_v; typ = _; args = Some [ src ]; _ } ->
+      Some (Identity { dst = dest_v; src })
+  | { op = "print"; dest = _; typ = _; args; _ } ->
+      Some (Print (Option.value args ~default:[]))
+  | _ -> None
+
 let bril_misc_of_effect_instr = function
   | { op = "id"; args = Some [ src ]; funcs = None; labels = None } ->
       Some (Identity { dst = src; src })
@@ -297,7 +304,10 @@ let bril_ir_instruction_from_instruction = function
               | None -> (
                   match bril_call_of_value_instr v with
                   | Some c -> Control c
-                  | None -> failwith "Invalid value instruction"))))
+                  | None -> (
+                      match bril_misc_of_value_instr v with
+                      | Some m -> Misc m
+                      | None -> failwith "Invalid value instruction")))))
   | BrilEffectInstruction e -> (
       match bril_control_of_effect_instr e with
       | Some c -> Control c
