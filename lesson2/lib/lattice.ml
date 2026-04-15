@@ -58,6 +58,13 @@ struct
   let analyze (s : state) (cfg : CFG.t) : state =
     let ns = cfg.nodes in
     let workgroup = Hashtbl.keys ns in
+    (* Initialize with inputs *)
+
+    List.iter workgroup ~f:(fun n ->
+        if not (Hashtbl.mem s.in' n) then
+          Hashtbl.set s.in' ~key:n ~data:L.bottom;
+        if not (Hashtbl.mem s.out' n) then
+          Hashtbl.set s.out' ~key:n ~data:L.bottom);
 
     let compute_in (n : Basic_block.id) =
       List.fold_left (preds cfg n) ~init:L.bottom ~f:(fun acc pred ->
@@ -87,41 +94,44 @@ struct
     s
 end
 
-module Instruction = struct
-  type t = bril_ir_instruction
-
-  let compare = compare_bril_ir_instruction
-  let hash = hash_bril_ir_instruction
-  let sexp_of_t = sexp_of_bril_ir_instruction
-  let t_of_sexp = bril_ir_instruction_of_sexp
-end
-
-module PolymorphicComparator = struct
-  include Instruction
-  include Base.Comparator.Make (Instruction)
-end
+type reaching_def_set = (Instruction.t, Instruction.comparator_witness) Set.t
+type reaching_def_lattice_t = Top | Set of reaching_def_set
 
 module ReachingDefinitionsLattice :
-  Lattice
-    with type t =
-      (Instruction.t, PolymorphicComparator.comparator_witness) Set.t =
-struct
+  Lattice with type t = reaching_def_lattice_t = struct
   (* set of definitions reaching current point: Set of var_name * val*)
-  type t = (Instruction.t, PolymorphicComparator.comparator_witness) Set.t
+  type t = reaching_def_lattice_t
 
-  let ( <= ) s1 s2 = Set.is_subset s1 ~of_:s2
+  let ( <= ) s1 s2 =
+    match (s1, s2) with
+    | _, Top -> true
+    | Top, _ -> false
+    | Set s1', Set s2' -> Set.is_subset s1' ~of_:s2'
 
   (* to be entirely precise we can do s1 <= s2 && s2 <= s1 *)
-  let ( = ) = Set.equal
+  let ( = ) s1 s2 =
+    match (s1, s2) with
+    | Top, Top -> true
+    | Set s1', Set s2' -> Set.equal s1' s2'
+    | _ -> false
+
   let leq = ( <= )
-  let join = Set.inter
-  let meet = Set.union
+
+  let join s1 s2 =
+    match (s1, s2) with
+    | Top, _ | _, Top -> Top
+    | Set s1', Set s2' -> Set (Set.inter s1' s2')
+
+  let meet s1 s2 =
+    match (s1, s2) with
+    | Top, x | x, Top -> x
+    | Set s1', Set s2' -> Set (Set.union s1' s2')
 
   (* set with all elements *)
-  let top = Set.empty (module PolymorphicComparator)
+  let top = Top
 
   (* set with no elements *)
-  let bottom = Set.empty (module PolymorphicComparator)
+  let bottom = Set (Set.empty (module Instruction))
 end
 
 module ReachingDefinitions :
@@ -131,21 +141,24 @@ module ReachingDefinitions :
   let d = Forward
 
   let transfer (bb : Basic_block.t) (in' : t) : t =
-    let gen_kill =
-      List.fold_left bb.instructions ~init:in' ~f:(fun acc instr ->
-          match get_dest instr with
-          | Some dst ->
-              let filter =
-                Set.filter acc ~f:(fun i ->
-                    let got_dst = get_dest i in
-                    match got_dst with
-                    | Some d -> String.(d <> dst)
-                    | None -> true)
-              in
-              Set.add filter instr
-          | None -> acc)
-    in
-    gen_kill
+    match in' with
+    | Top -> Top
+    | Set acc ->
+        let gen_kill =
+          List.fold_left bb.instructions ~init:acc ~f:(fun acc instr ->
+              match Instruction.get_dest instr with
+              | Some dst ->
+                  let filter =
+                    Set.filter acc ~f:(fun i ->
+                        let got_dst = Instruction.get_dest i in
+                        match got_dst with
+                        | Some d -> String.(d <> dst)
+                        | None -> true)
+                  in
+                  Set.add filter instr
+              | None -> acc)
+        in
+        Set gen_kill
 end
 
 module RDSolver =

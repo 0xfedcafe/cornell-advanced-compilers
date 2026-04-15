@@ -1,5 +1,6 @@
 open Base
 open Bril_instruction
+open Instruction
 open Bril_immediate
 
 let eval_arithm (instr : bril_arithm_instr)
@@ -64,8 +65,8 @@ let eval_logic (instr : bril_logic_instr)
       | Some (BrilBool a), Some (BrilBool b) -> Some (BrilBool (a || b))
       | _ -> None)
 
-let evaluate_instruction (instr : bril_ir_instruction)
-    (env : string -> bril_immediate option) : bril_ir_instruction option =
+let evaluate_instruction (instr : Instruction.t)
+    (env : string -> bril_immediate option) : Instruction.t option =
   let make_const dst value = Const (Const { dst; value }) in
   match instr with
   | Arithm a -> (

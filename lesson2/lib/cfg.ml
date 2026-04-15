@@ -67,7 +67,7 @@ let build_cfg bbs =
 
   let handle_instr_edge bb instr =
     match instr with
-    | Control c -> (
+    | Instruction.Control c -> (
         match c with
         | Jump lbl ->
             Hashtbl.find label_to_id lbl.label

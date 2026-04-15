@@ -22,7 +22,7 @@ type bril_ir_function = {
   name : string;
   args : bril_arg list option; [@default None]
   typ : bril_type option; [@key "type"] [@default None]
-  instrs : bril_ir_instruction list;
+  instrs : Instruction.t list;
 }
 [@@deriving compare, hash, sexp]
 

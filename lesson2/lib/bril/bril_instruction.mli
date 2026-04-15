@@ -116,26 +116,24 @@ val bril_misc_of_effect_instr :
 
 val bril_misc_of_value_instr : bril_value_instruction -> bril_misc_instr option
 
-type bril_ir_instruction =
-  | Arithm of bril_arithm_instr
-  | Comp of bril_comp_instr
-  | Logic of bril_logic_instr
-  | Const of bril_const_instr
-  | Control of bril_control_instr
-  | Label of bril_label
-  | Misc of bril_misc_instr
-[@@deriving compare, hash, sexp]
+module Instruction : sig
+  type t =
+    | Arithm of bril_arithm_instr
+    | Comp of bril_comp_instr
+    | Logic of bril_logic_instr
+    | Const of bril_const_instr
+    | Control of bril_control_instr
+    | Label of bril_label
+    | Misc of bril_misc_instr
+  [@@deriving compare, hash, sexp]
 
-val bril_ir_instruction_to_string : bril_ir_instruction -> string
+  include Base.Comparator.S with type t := t
 
-val bril_ir_instruction_from_instruction :
-  bril_instruction -> bril_ir_instruction
-
-val get_dest : bril_ir_instruction -> string option
-val replace_dst : bril_ir_instruction -> string -> bril_ir_instruction
-
-val replace_args :
-  bril_ir_instruction -> (string -> string) -> bril_ir_instruction
-
-val get_args : bril_ir_instruction -> string list
-val string_of_op : bril_ir_instruction -> string
+  val to_string : t -> string
+  val from_instruction : bril_instruction -> t
+  val get_dest : t -> string option
+  val replace_dst : t -> string -> t
+  val replace_args : t -> (string -> string) -> t
+  val get_args : t -> string list
+  val string_of_op : t -> string
+end

@@ -42,24 +42,12 @@ module DataflowSolver : functor
   val analyze : state -> CFG.t -> state
 end
 
-module Instruction : sig
-  type t = bril_ir_instruction
-
-  val compare : t -> t -> int
-  val hash : t -> int
-  val sexp_of_t : t -> Sexp.t
-  val t_of_sexp : Sexp.t -> t
-end
-
-module PolymorphicComparator : sig
-  include module type of Instruction
-  include Base.Comparator.S with type t := t
-end
+type reaching_def_set = (Instruction.t, Instruction.comparator_witness) Set.t
+type reaching_def_lattice_t = Top | Set of reaching_def_set
 
 module ReachingDefinitionsLattice :
   Lattice
-    with type t =
-      (Instruction.t, PolymorphicComparator.comparator_witness) Set.t
+    with type t = reaching_def_lattice_t
 
 module ReachingDefinitions :
   DataflowBase with type t = ReachingDefinitionsLattice.t

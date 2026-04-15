@@ -16,7 +16,7 @@ end
 type t = {
   id : id;
   label : string option;
-  instructions : bril_ir_instruction list;
+  instructions : Instruction.t list;
 }
 [@@deriving compare, hash, sexp]
 
@@ -39,7 +39,7 @@ let bbs_in_function func =
           }
           :: bbs
         else bbs
-    | Label l :: rest ->
+    | Instruction.Label l :: rest ->
         let bbs' =
           if Option.is_some curr_lbl || not (List.is_empty curr_instrs) then
             {

@@ -1,5 +1,6 @@
 open Lesson2
 open Lesson2.Basic_block
+open Bril_instruction
 
 let process_bril_file filename =
   let json = Stdio.In_channel.read_all filename in
@@ -30,6 +31,28 @@ let process_bril_file filename =
   (* Run the Global Unused Pass *)
   Lesson2.Global_unused_pass.global_unused_pass cfg;
 
+  let res = Lesson2.Lattice.reaching_definitions_analysis cfg in
+  print_endline "Reaching Definitions Analysis Result:";
+  Base.Hashtbl.iteri res.in' ~f:(fun ~key:bb_id ~data:defs ->
+      let in_str =
+        match defs with
+        | Lesson2.Lattice.Top -> "TOP (Universal)"
+        | Lesson2.Lattice.Set s ->
+            Base.Set.to_list s
+            |> Base.List.map ~f:(fun instr -> Instruction.to_string instr)
+            |> Base.String.concat ~sep:", "
+      in
+      let out_str =
+        match Base.Hashtbl.find res.out' bb_id with
+        | Some Lesson2.Lattice.Top -> "TOP (Universal)"
+        | Some (Lesson2.Lattice.Set s) ->
+            Base.Set.to_list s
+            |> Base.List.map ~f:(fun instr -> Instruction.to_string instr)
+            |> Base.String.concat ~sep:", "
+        | None -> "NONE"
+      in
+      Printf.printf "BB%d IN: %s\nBB%d OUT: %s\n" bb_id in_str bb_id out_str);
+
   (* Reconstruct functions from CFG *)
   let optimized_functions =
     Base.List.map funcs_with_bbs ~f:(fun (func, bbs) ->
@@ -44,7 +67,7 @@ let process_bril_file filename =
                       when not
                              (Base.String.is_prefix ~prefix:func.name l
                              && Base.String.is_substring ~substring:"_b" l) ->
-                        [ Bril.Label { label = l } ]
+                        [ Bril.Instruction.Label { label = l } ]
                     | Some _ | None -> []
                   in
                   label_instr @ optimized_bb.instructions

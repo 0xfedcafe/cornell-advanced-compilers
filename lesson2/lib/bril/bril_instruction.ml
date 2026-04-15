@@ -218,17 +218,23 @@ let bril_misc_of_effect_instr = function
   | { op = "nop"; args = None; funcs = None; labels = None } -> Some Nop
   | _ -> None
 
-type bril_ir_instruction =
-  | Arithm of bril_arithm_instr
-  | Comp of bril_comp_instr
-  | Logic of bril_logic_instr
-  | Const of bril_const_instr
-  | Control of bril_control_instr
-  | Label of bril_label
-  | Misc of bril_misc_instr
-[@@deriving compare, hash, sexp]
+module Instruction = struct
+  module T = struct
+    type t =
+      | Arithm of bril_arithm_instr
+      | Comp of bril_comp_instr
+      | Logic of bril_logic_instr
+      | Const of bril_const_instr
+      | Control of bril_control_instr
+      | Label of bril_label
+      | Misc of bril_misc_instr
+    [@@deriving compare, hash, sexp]
+  end
 
-let bril_ir_instruction_to_string = function
+  include T
+  include Base.Comparator.Make (T)
+
+  let to_string = function
   | Arithm a -> (
       match a with
       | Add { dst; src1; src2 } ->
@@ -291,7 +297,7 @@ let bril_ir_instruction_to_string = function
           Printf.sprintf "print%s" args_str
       | Nop -> "nop")
 
-let bril_ir_instruction_from_instruction = function
+let from_instruction = function
   | BrilValueInstruction v -> (
       match bril_arithm_of_value_instr v with
       | Some a -> Arithm a
@@ -381,8 +387,7 @@ let get_args = function
   | Misc (Print args) -> args
   | _ -> []
 
-let replace_args (instr : bril_ir_instruction) (f : string -> string) :
-    bril_ir_instruction =
+let replace_args (instr : t) (f : string -> string) : t =
   match instr with
   | Arithm (Add op) ->
       Arithm (Add { op with src1 = f op.src1; src2 = f op.src2 })
@@ -429,3 +434,5 @@ let string_of_op = function
   | Misc (Print _) -> "print"
   | Misc Nop -> "nop"
   | Label _ -> failwith "Labels don't have ops"
+
+end

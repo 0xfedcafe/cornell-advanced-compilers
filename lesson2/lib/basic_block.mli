@@ -12,7 +12,7 @@ end
 type t = {
   id : id;
   label : string option;
-  instructions : bril_ir_instruction list;
+  instructions : Instruction.t list;
 }
 [@@deriving compare, hash, sexp]
 

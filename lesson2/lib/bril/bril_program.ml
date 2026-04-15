@@ -22,7 +22,7 @@ let from_tokens (prog : bril_program) : bril_ir_program =
     List.map prog.functions ~f:(fun f ->
         let ir_instrs =
           List.map f.instrs ~f:(fun instr ->
-              bril_ir_instruction_from_instruction instr)
+              Instruction.from_instruction instr)
         in
         { name = f.name; args = f.args; typ = f.typ; instrs = ir_instrs })
   in

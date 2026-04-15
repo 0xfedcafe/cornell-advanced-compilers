@@ -42,7 +42,7 @@ type bril_ir_function = {
   name : string;
   args : bril_arg list option;
   typ : bril_type option;
-  instrs : bril_ir_instruction list;
+  instrs : Instruction.t list;
 }
 [@@deriving compare, hash, sexp]
 
@@ -60,10 +60,10 @@ let bril_ir_function_to_string { name; args; typ; instrs } =
     String.concat ~sep:"\n"
       (List.map
          ~f:(function
-           | Bril_instruction.Label _ as l ->
-               Bril_instruction.bril_ir_instruction_to_string l
+           | Bril_instruction.Instruction.Label _ as l ->
+               Bril_instruction.Instruction.to_string l
            | instr ->
-               "  " ^ Bril_instruction.bril_ir_instruction_to_string instr ^ ";")
+               "  " ^ Bril_instruction.Instruction.to_string instr ^ ";")
          instrs)
   in
   Printf.sprintf "@%s(%s) {\n%s\n}" name args_str instrs_str

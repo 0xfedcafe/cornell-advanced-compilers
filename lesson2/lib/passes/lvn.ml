@@ -2,11 +2,12 @@ open Cfg
 open Base
 open Basic_block
 open Bril_instruction
+open Instruction
 
 type lvn_value = LvnConst of string | LvnOp of string * string list
 [@@deriving compare, hash, sexp]
 
-let canonicalize_lvn_value (instr : bril_ir_instruction) : lvn_value option =
+let canonicalize_lvn_value (instr : Instruction.t) : lvn_value option =
   match instr with
   | Const (Const op) ->
       Some (LvnConst (Bril_immediate.bril_immediate_to_string op.value))
