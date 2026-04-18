@@ -45,15 +45,38 @@ end
 type reaching_def_set = (Instruction.t, Instruction.comparator_witness) Set.t
 type reaching_def_lattice_t = Top | Set of reaching_def_set
 
-module ReachingDefinitionsLattice :
-  Lattice
-    with type t = reaching_def_lattice_t
+module ReachingDefinitionsLattice : Lattice with type t = reaching_def_lattice_t
 
 module ReachingDefinitions :
   DataflowBase with type t = ReachingDefinitionsLattice.t
+
+type live_vars_set = (String.t, String.comparator_witness) Set.t
+type live_vars_lattice_t = Top | Set of live_vars_set
+
+module LiveVarsLattice : Lattice with type t = live_vars_lattice_t
+module LiveVars : DataflowBase with type t = LiveVarsLattice.t
+
+type constant_propagation_set =
+  (Instruction.t, Instruction.comparator_witness) Set.t
+
+type constant_propagation_lattice_t = Top | Set of constant_propagation_set
+
+module ConstantPropagationLattice :
+  Lattice with type t = constant_propagation_lattice_t
+
+module ConstantPropagation :
+  DataflowBase with type t = ConstantPropagationLattice.t
 
 module RDSolver :
     module type of
       DataflowSolver (ReachingDefinitionsLattice) (ReachingDefinitions)
 
+module LVSolver : module type of DataflowSolver (LiveVarsLattice) (LiveVars)
+
+module ConstantPropagationSolver :
+    module type of
+      DataflowSolver (ConstantPropagationLattice) (ConstantPropagation)
+
 val reaching_definitions_analysis : CFG.t -> RDSolver.state
+val live_vars_analysis : CFG.t -> LVSolver.state
+val constant_propagation_analysis : CFG.t -> ConstantPropagationSolver.state

@@ -53,6 +53,46 @@ let process_bril_file filename =
       in
       Printf.printf "BB%d IN: %s\nBB%d OUT: %s\n" bb_id in_str bb_id out_str);
 
+  let live_vars = Lesson2.Lattice.live_vars_analysis cfg in
+  print_endline "\nLive Variable Analysis Result:";
+  Base.Hashtbl.iteri live_vars.in' ~f:(fun ~key:bb_id ~data:vars ->
+      let in_str =
+        match vars with
+        | Lesson2.Lattice.Top -> "TOP (Universal)"
+        | Lesson2.Lattice.Set s ->
+            Base.Set.to_list s |> Base.String.concat ~sep:", "
+      in
+      let out_str =
+        match Base.Hashtbl.find live_vars.out' bb_id with
+        | Some Lesson2.Lattice.Top -> "TOP (Universal)"
+        | Some (Lesson2.Lattice.Set s) ->
+            Base.Set.to_list s |> Base.String.concat ~sep:", "
+        | None -> "NONE"
+      in
+      Printf.printf "BB%d IN: %s\nBB%d OUT: %s\n" bb_id out_str bb_id in_str);
+
+  let const_prop = Lesson2.Lattice.constant_propagation_analysis cfg in
+  print_endline "\nConstant Propagation Analysis Result:";
+  Base.Hashtbl.iteri const_prop.in' ~f:(fun ~key:bb_id ~data:consts ->
+      let in_str =
+        match consts with
+        | Lesson2.Lattice.Top -> "TOP (Universal)"
+        | Lesson2.Lattice.Set s ->
+            Base.Set.to_list s
+            |> Base.List.map ~f:(fun instr -> Instruction.to_string instr)
+            |> Base.String.concat ~sep:", "
+      in
+      let out_str =
+        match Base.Hashtbl.find const_prop.out' bb_id with
+        | Some Lesson2.Lattice.Top -> "TOP (Universal)"
+        | Some (Lesson2.Lattice.Set s) ->
+            Base.Set.to_list s
+            |> Base.List.map ~f:(fun instr -> Instruction.to_string instr)
+            |> Base.String.concat ~sep:", "
+        | None -> "NONE"
+      in
+      Printf.printf "BB%d IN: %s\nBB%d OUT: %s\n" bb_id in_str bb_id out_str);
+
   (* Reconstruct functions from CFG *)
   let optimized_functions =
     Base.List.map funcs_with_bbs ~f:(fun (func, bbs) ->
