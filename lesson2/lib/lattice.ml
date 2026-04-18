@@ -95,45 +95,62 @@ struct
     s
 end
 
-type reaching_def_set = (Instruction.t, Instruction.comparator_witness) Set.t
-type reaching_def_lattice_t = Top | Set of reaching_def_set
+type 'a set_lattice_t = Top | Set of 'a
 
-module ReachingDefinitionsLattice :
-  Lattice with type t = reaching_def_lattice_t = struct
-  (* set of definitions reaching current point: Set of var_name * val*)
-  type t = reaching_def_lattice_t
+module type SetLatticeParams = sig
+  type set_t
+
+  val empty : set_t
+  val is_subset : set_t -> of_:set_t -> bool
+  val equal : set_t -> set_t -> bool
+  val meet_sets : set_t -> set_t -> set_t
+  val join_sets : set_t -> set_t -> set_t
+end
+
+module MakeSetLattice (P : SetLatticeParams) :
+  Lattice with type t = P.set_t set_lattice_t = struct
+  type t = P.set_t set_lattice_t
 
   let ( <= ) s1 s2 =
     match (s1, s2) with
     | _, Top -> true
     | Top, _ -> false
-    | Set s1', Set s2' -> Set.is_subset s1' ~of_:s2'
+    | Set s1', Set s2' -> P.is_subset s1' ~of_:s2'
 
-  (* to be entirely precise we can do s1 <= s2 && s2 <= s1 *)
+  let leq = ( <= )
+
   let ( = ) s1 s2 =
     match (s1, s2) with
     | Top, Top -> true
-    | Set s1', Set s2' -> Set.equal s1' s2'
+    | Set s1', Set s2' -> P.equal s1' s2'
     | _ -> false
-
-  let leq = ( <= )
 
   let join s1 s2 =
     match (s1, s2) with
     | Top, _ | _, Top -> Top
-    | Set s1', Set s2' -> Set (Set.inter s1' s2')
+    | Set s1', Set s2' -> Set (P.join_sets s1' s2')
 
   let meet s1 s2 =
     match (s1, s2) with
     | Top, x | x, Top -> x
-    | Set s1', Set s2' -> Set (Set.union s1' s2')
+    | Set s1', Set s2' -> Set (P.meet_sets s1' s2')
 
-  (* set with all elements *)
   let top = Top
-
-  (* set with no elements *)
-  let bottom = Set (Set.empty (module Instruction))
+  let bottom = Set P.empty
 end
+
+type reaching_def_set = (Instruction.t, Instruction.comparator_witness) Set.t
+type reaching_def_lattice_t = reaching_def_set set_lattice_t
+
+module ReachingDefinitionsLattice = MakeSetLattice (struct
+  type set_t = reaching_def_set
+
+  let empty = Set.empty (module Instruction)
+  let is_subset = Set.is_subset
+  let equal = Set.equal
+  let meet_sets = Set.union
+  let join_sets = Set.inter
+end)
 
 module ReachingDefinitions :
   DataflowBase with type t = ReachingDefinitionsLattice.t = struct
@@ -163,38 +180,17 @@ module ReachingDefinitions :
 end
 
 type live_vars_set = (String.t, String.comparator_witness) Set.t
-type live_vars_lattice_t = Top | Set of live_vars_set
+type live_vars_lattice_t = live_vars_set set_lattice_t
 
-module LiveVarsLattice : Lattice with type t = live_vars_lattice_t = struct
-  type t = live_vars_lattice_t
+module LiveVarsLattice = MakeSetLattice (struct
+  type set_t = live_vars_set
 
-  let ( <= ) s1 s2 =
-    match (s1, s2) with
-    | _, Top -> true
-    | Top, _ -> false
-    | Set s1', Set s2' -> Set.is_subset s1' ~of_:s2'
-
-  let leq = ( <= )
-
-  let ( = ) s1 s2 =
-    match (s1, s2) with
-    | Top, Top -> true
-    | Set s1', Set s2' -> Set.equal s1' s2'
-    | _ -> false
-
-  let join s1 s2 =
-    match (s1, s2) with
-    | Top, _ | _, Top -> Top
-    | Set s1', Set s2' -> Set (Set.inter s1' s2')
-
-  let meet s1 s2 =
-    match (s1, s2) with
-    | Top, x | x, Top -> x
-    | Set s1', Set s2' -> Set (Set.union s1' s2')
-
-  let top = Top
-  let bottom = Set (Set.empty (module String))
-end
+  let empty = Set.empty (module String)
+  let is_subset = Set.is_subset
+  let equal = Set.equal
+  let meet_sets = Set.union
+  let join_sets = Set.inter
+end)
 
 module LiveVars : DataflowBase with type t = LiveVarsLattice.t = struct
   type t = LiveVarsLattice.t
@@ -228,56 +224,33 @@ end
 type constant_propagation_set =
   (Instruction.t, Instruction.comparator_witness) Set.t
 
-type constant_propagation_lattice_t = Top | Set of constant_propagation_set
+type constant_propagation_lattice_t = constant_propagation_set set_lattice_t
 
-module ConstantPropagationLattice :
-  Lattice with type t = constant_propagation_lattice_t = struct
-  type t = constant_propagation_lattice_t
+module ConstantPropagationLattice = MakeSetLattice (struct
+  type set_t = constant_propagation_set
 
-  let ( <= ) s1 s2 =
-    match (s1, s2) with
-    | _, Top -> true
-    | Top, _ -> false
-    | Set s1', Set s2' -> Set.is_subset s1' ~of_:s2'
+  let empty = Set.empty (module Instruction)
+  let is_subset = Set.is_subset
+  let equal = Set.equal
 
-  let leq = ( <= )
+  let meet_sets s1' s2' =
+    let union_set = Set.union s1' s2' in
+    let dest_counts = Hashtbl.create (module String) in
+    Set.iter union_set ~f:(fun instr ->
+        match Instruction.get_dest instr with
+        | Some dst ->
+            let count =
+              Hashtbl.find dest_counts dst |> Option.value ~default:0
+            in
+            Hashtbl.set dest_counts ~key:dst ~data:(count + 1)
+        | None -> ());
+    Set.filter union_set ~f:(fun instr ->
+        match Instruction.get_dest instr with
+        | Some dst -> Int.equal (Hashtbl.find_exn dest_counts dst) 1
+        | None -> true)
 
-  let ( = ) s1 s2 =
-    match (s1, s2) with
-    | Top, Top -> true
-    | Set s1', Set s2' -> Set.equal s1' s2'
-    | _ -> false
-
-  let join s1 s2 =
-    match (s1, s2) with
-    | Top, _ | _, Top -> Top
-    | Set s1', Set s2' -> Set (Set.union s1' s2')
-
-  let meet s1 s2 =
-    match (s1, s2) with
-    | Top, x | x, Top -> x
-    | Set s1', Set s2' ->
-        let union_set = Set.union s1' s2' in
-        let dest_counts = Hashtbl.create (module String) in
-        Set.iter union_set ~f:(fun instr ->
-            match Instruction.get_dest instr with
-            | Some dst ->
-                let count =
-                  Hashtbl.find dest_counts dst |> Option.value ~default:0
-                in
-                Hashtbl.set dest_counts ~key:dst ~data:(count + 1)
-            | None -> ());
-        let filtered_set =
-          Set.filter union_set ~f:(fun instr ->
-              match Instruction.get_dest instr with
-              | Some dst -> Int.equal (Hashtbl.find_exn dest_counts dst) 1
-              | None -> true)
-        in
-        Set filtered_set
-
-  let top = Top
-  let bottom = Set (Set.empty (module Instruction))
-end
+  let join_sets = Set.union
+end)
 
 module ConstantPropagation :
   DataflowBase with type t = ConstantPropagationLattice.t = struct
