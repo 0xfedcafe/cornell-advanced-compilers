@@ -90,4 +90,31 @@ module Dominators = struct
     | Some (Set s) -> Set.mem s a
     | Some Top -> true
     | None -> false
+
+  let strictly_dominates (state : doms_state) (a : Basic_block.id)
+      (b : Basic_block.id) : bool =
+    a <> b && dominates state a b
+
+  let dominance_frontier (cfg : CFG.t) (entry_id : Basic_block.id) :
+      (Basic_block.id, dom_set) Hashtbl.t =
+    let frontier = Hashtbl.create (module Basic_block.Id) in
+    let doms = compute_dominators cfg entry_id in
+
+    Hashtbl.iter_keys cfg.graph ~f:(fun bb_id ->
+        Hashtbl.set frontier ~key:bb_id
+          ~data:(Set.empty (module Basic_block.Id)));
+
+    Hashtbl.iteri cfg.graph ~f:(fun ~key:a ~data:node ->
+        List.iter node.succs ~f:(fun b ->
+            let a_doms =
+              match Hashtbl.find_exn doms.out' a with
+              | Top -> []
+              | Set s -> Set.elements s
+            in
+            List.iter a_doms ~f:(fun d ->
+                if not (strictly_dominates doms d b) then
+                  let current_frontier = Hashtbl.find_exn frontier d in
+                  Hashtbl.set frontier ~key:d ~data:(Set.add current_frontier b))));
+
+    frontier
 end

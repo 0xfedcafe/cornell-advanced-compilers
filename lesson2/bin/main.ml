@@ -31,7 +31,10 @@ let process_bril_file filename =
   (* Run the Global Unused Pass *)
   Lesson2.Global_unused_pass.global_unused_pass cfg;
 
-  let res = Lesson2.Lattice.reaching_definitions_analysis cfg in
+  let entry_id = (Base.List.hd_exn all_bbs).id in
+  let res =
+    Lesson2.Reaching_definitions.reaching_definitions_analysis cfg entry_id
+  in
   print_endline "Reaching Definitions Analysis Result:";
   Base.Hashtbl.iteri res.in' ~f:(fun ~key:bb_id ~data:defs ->
       let in_str =
@@ -53,7 +56,7 @@ let process_bril_file filename =
       in
       Printf.printf "BB%d IN: %s\nBB%d OUT: %s\n" bb_id in_str bb_id out_str);
 
-  let live_vars = Lesson2.Lattice.live_vars_analysis cfg in
+  let live_vars = Lesson2.Live_vars.live_vars_analysis cfg entry_id in
   print_endline "\nLive Variable Analysis Result:";
   Base.Hashtbl.iteri live_vars.in' ~f:(fun ~key:bb_id ~data:vars ->
       let in_str =
@@ -71,7 +74,9 @@ let process_bril_file filename =
       in
       Printf.printf "BB%d IN: %s\nBB%d OUT: %s\n" bb_id out_str bb_id in_str);
 
-  let const_prop = Lesson2.Lattice.constant_propagation_analysis cfg in
+  let const_prop =
+    Lesson2.Constant_propagation.constant_propagation_analysis cfg entry_id
+  in
   print_endline "\nConstant Propagation Analysis Result:";
   Base.Hashtbl.iteri const_prop.in' ~f:(fun ~key:bb_id ~data:consts ->
       let in_str =

@@ -21,8 +21,7 @@ let from_tokens (prog : bril_program) : bril_ir_program =
   let ir_functions =
     List.map prog.functions ~f:(fun f ->
         let ir_instrs =
-          List.map f.instrs ~f:(fun instr ->
-              Instruction.from_instruction instr)
+          List.map f.instrs ~f:(fun instr -> Instruction.from_instruction instr)
         in
         { name = f.name; args = f.args; typ = f.typ; instrs = ir_instrs })
   in

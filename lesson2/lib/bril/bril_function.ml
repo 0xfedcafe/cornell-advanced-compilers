@@ -62,8 +62,7 @@ let bril_ir_function_to_string { name; args; typ; instrs } =
          ~f:(function
            | Bril_instruction.Instruction.Label _ as l ->
                Bril_instruction.Instruction.to_string l
-           | instr ->
-               "  " ^ Bril_instruction.Instruction.to_string instr ^ ";")
+           | instr -> "  " ^ Bril_instruction.Instruction.to_string instr ^ ";")
          instrs)
   in
   Printf.sprintf "@%s(%s) {\n%s\n}" name args_str instrs_str

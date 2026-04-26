@@ -1,6 +1,5 @@
 open Cfg
 open Base
-open Bril_instruction
 
 module type Lattice = sig
   type t
@@ -66,40 +65,3 @@ end
 
 module MakeSetLattice : functor (P : SetLatticeParams) ->
   Lattice with type t = P.set_t set_lattice_t
-
-type reaching_def_set = (Instruction.t, Instruction.comparator_witness) Set.t
-type reaching_def_lattice_t = reaching_def_set set_lattice_t
-
-module ReachingDefinitionsLattice : Lattice with type t = reaching_def_lattice_t
-
-module ReachingDefinitionsAnalysis :
-  Analysis with type t = ReachingDefinitionsLattice.t
-
-type live_vars_set = (String.t, String.comparator_witness) Set.t
-type live_vars_lattice_t = live_vars_set set_lattice_t
-
-module LiveVarsLattice : Lattice with type t = live_vars_lattice_t
-module LiveVarsAnalysis : Analysis with type t = LiveVarsLattice.t
-
-type constant_propagation_set =
-  (Instruction.t, Instruction.comparator_witness) Set.t
-
-type constant_propagation_lattice_t = constant_propagation_set set_lattice_t
-
-module ConstantPropagationLattice :
-  Lattice with type t = constant_propagation_lattice_t
-
-module ConstantPropagationAnalysis :
-  Analysis with type t = ConstantPropagationLattice.t
-
-module RDSolver : module type of DataflowSolver (ReachingDefinitionsAnalysis)
-module LVSolver : module type of DataflowSolver (LiveVarsAnalysis)
-
-module ConstantPropagationSolver :
-    module type of DataflowSolver (ConstantPropagationAnalysis)
-
-val reaching_definitions_analysis : CFG.t -> Basic_block.id -> RDSolver.state
-val live_vars_analysis : CFG.t -> Basic_block.id -> LVSolver.state
-
-val constant_propagation_analysis :
-  CFG.t -> Basic_block.id -> ConstantPropagationSolver.state
