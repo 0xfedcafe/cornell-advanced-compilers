@@ -51,7 +51,38 @@ module Dominators = struct
   let compute_dominators (cfg : CFG.t) entry_id : doms_state =
     let state = Solver.create_state () in
     let ordered_nodes = reverse_post_order cfg entry_id in
-    Solver.analyze state cfg ordered_nodes
+    Solver.analyze state cfg entry_id ordered_nodes
+
+  let compute_idoms (cfg : CFG.t) (entry_id : Basic_block.id) :
+      (Basic_block.id, Basic_block.id option) Hashtbl.t =
+    let idoms = Hashtbl.create (module Basic_block.Id) in
+    let doms = compute_dominators cfg entry_id in
+
+    let doms_map = doms.out' in
+    Hashtbl.iteri doms_map ~f:(fun ~key:bb_id ~data:dom_set ->
+        match dom_set with
+        | Top -> Hashtbl.set idoms ~key:bb_id ~data:None
+        | Set s ->
+            let idom =
+              List.fold_left (Set.elements s) ~init:None ~f:(fun acc c ->
+                  if c = bb_id then acc
+                  else
+                    match acc with
+                    | None -> Some c
+                    | Some nearest_yet -> (
+                        let dom_c = Hashtbl.find_exn doms_map c in
+                        let dom_nearest_yet =
+                          Hashtbl.find_exn doms_map nearest_yet
+                        in
+                        match (dom_c, dom_nearest_yet) with
+                        | Top, _ -> Some c
+                        | _, Top -> Some nearest_yet
+                        | Set s1, Set s2 ->
+                            if Set.length s1 > Set.length s2 then Some c
+                            else Some nearest_yet))
+            in
+            Hashtbl.set idoms ~key:bb_id ~data:idom);
+    idoms
 
   let dominates (state : doms_state) (a : Basic_block.id) (b : Basic_block.id) :
       bool =

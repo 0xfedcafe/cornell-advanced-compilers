@@ -71,46 +71,48 @@ module BaseSolver (A : Analysis) = struct
     | Forward -> (Hashtbl.find_exn cfg.graph bb_id).succs
     | Backward -> (Hashtbl.find_exn cfg.graph bb_id).preds
 
-  let init_nodes s nodes =
+  let init_nodes s nodes entry_id =
     List.iter nodes ~f:(fun n ->
+        let is_entry = n = entry_id in
         if not (Hashtbl.mem s.in' n) then
-          Hashtbl.set s.in' ~key:n ~data:A.init_state;
+          Hashtbl.set s.in' ~key:n
+            ~data:(if is_entry then A.boundary_state else A.init_state);
         if not (Hashtbl.mem s.out' n) then
-          Hashtbl.set s.out' ~key:n ~data:A.init_state)
+          Hashtbl.set s.out' ~key:n
+            ~data:(if is_entry then A.boundary_state else A.init_state))
 
-  let process_node s cfg x =
-    let p = preds cfg x in
+  let process_node s cfg x entry_id =
     let in' =
-      if List.is_empty p then A.boundary_state
+      if x = entry_id then A.boundary_state
       else
-        List.fold_left p ~init:A.top ~f:(fun acc pred ->
-            let p_out = Hashtbl.find_exn s.out' pred in
-            A.meet p_out acc)
+        let p = preds cfg x in
+        if List.is_empty p then A.boundary_state
+        else
+          List.fold_left p ~init:A.top ~f:(fun acc pred ->
+              let p_out = Hashtbl.find_exn s.out' pred in
+              A.meet p_out acc)
     in
     let bb = Hashtbl.find_exn cfg.nodes x in
-
     let out' = A.transfer bb in' in
     let out = Hashtbl.find_exn s.out' x in
-
     update_in s x in';
     update_out s x out';
-
     not (A.( = ) out out')
 end
 
 module DataflowSolver (A : Analysis) = struct
   include BaseSolver (A)
 
-  let analyze (s : state) (cfg : CFG.t) : state =
+  let analyze (s : state) (cfg : CFG.t) (entry_id : Basic_block.id) : state =
     let ns = cfg.nodes in
     let workgroup = Hashtbl.keys ns in
-    init_nodes s workgroup;
+    init_nodes s workgroup entry_id;
 
     let rec analyze_iter workgroup =
       match workgroup with
       | [] -> ()
       | x :: xs ->
-          let changed = process_node s cfg x in
+          let changed = process_node s cfg x entry_id in
           if changed then
             let succs' = succs cfg x in
             analyze_iter (xs @ succs')
@@ -123,14 +125,14 @@ end
 module OrderedSolver (A : Analysis) = struct
   include BaseSolver (A)
 
-  let analyze (s : state) (cfg : CFG.t) (ordered_nodes : Basic_block.id list) :
-      state =
-    init_nodes s ordered_nodes;
+  let analyze (s : state) (cfg : CFG.t) (entry_id : Basic_block.id)
+      (ordered_nodes : Basic_block.id list) : state =
+    init_nodes s ordered_nodes entry_id;
 
     let rec analyze_iter () =
       let changed =
         List.fold_left ordered_nodes ~init:false ~f:(fun changed_acc x ->
-            let node_changed = process_node s cfg x in
+            let node_changed = process_node s cfg x entry_id in
             changed_acc || node_changed)
       in
       if changed then analyze_iter ()
@@ -336,18 +338,20 @@ module RDSolver = DataflowSolver (ReachingDefinitionsAnalysis)
 module LVSolver = DataflowSolver (LiveVarsAnalysis)
 module ConstantPropagationSolver = DataflowSolver (ConstantPropagationAnalysis)
 
-let reaching_definitions_analysis (cfg : CFG.t) : RDSolver.state =
+let reaching_definitions_analysis (cfg : CFG.t) (entry_id : Basic_block.id) :
+    RDSolver.state =
   let module Solver = DataflowSolver (ReachingDefinitionsAnalysis) in
   let state = Solver.create_state () in
-  RDSolver.analyze state cfg
+  RDSolver.analyze state cfg entry_id
 
-let live_vars_analysis (cfg : CFG.t) : LVSolver.state =
+let live_vars_analysis (cfg : CFG.t) (entry_id : Basic_block.id) :
+    LVSolver.state =
   let module Solver = DataflowSolver (LiveVarsAnalysis) in
   let state = Solver.create_state () in
-  LVSolver.analyze state cfg
+  LVSolver.analyze state cfg entry_id
 
-let constant_propagation_analysis (cfg : CFG.t) :
+let constant_propagation_analysis (cfg : CFG.t) (entry_id : Basic_block.id) :
     ConstantPropagationSolver.state =
   let module Solver = DataflowSolver (ConstantPropagationAnalysis) in
   let state = Solver.create_state () in
-  ConstantPropagationSolver.analyze state cfg
+  ConstantPropagationSolver.analyze state cfg entry_id

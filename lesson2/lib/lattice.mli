@@ -27,10 +27,12 @@ end
 
 module type SolverState = sig
   type t
+
   type state = {
     in' : (Basic_block.id, t) Hashtbl.t;
     out' : (Basic_block.id, t) Hashtbl.t;
   }
+
   val create_state : unit -> state
   val update_in : state -> Basic_block.id -> t -> unit
   val update_out : state -> Basic_block.id -> t -> unit
@@ -38,24 +40,23 @@ module type SolverState = sig
   val succs : CFG.t -> Basic_block.id -> Basic_block.id list
 end
 
-module DataflowSolver : functor
-  (A : Analysis)
-  -> sig
+module DataflowSolver : functor (A : Analysis) -> sig
   include SolverState with type t = A.t
-  val analyze : state -> CFG.t -> state
+
+  val analyze : state -> CFG.t -> Basic_block.id -> state
 end
 
-module OrderedSolver : functor
-  (A : Analysis)
-  -> sig
+module OrderedSolver : functor (A : Analysis) -> sig
   include SolverState with type t = A.t
-  val analyze : state -> CFG.t -> Basic_block.id list -> state
+
+  val analyze : state -> CFG.t -> Basic_block.id -> Basic_block.id list -> state
 end
 
 type 'a set_lattice_t = Top | Set of 'a
 
 module type SetLatticeParams = sig
   type set_t
+
   val empty : set_t
   val is_subset : set_t -> of_:set_t -> bool
   val equal : set_t -> set_t -> bool
@@ -63,7 +64,8 @@ module type SetLatticeParams = sig
   val join_sets : set_t -> set_t -> set_t
 end
 
-module MakeSetLattice : functor (P : SetLatticeParams) -> Lattice with type t = P.set_t set_lattice_t
+module MakeSetLattice : functor (P : SetLatticeParams) ->
+  Lattice with type t = P.set_t set_lattice_t
 
 type reaching_def_set = (Instruction.t, Instruction.comparator_witness) Set.t
 type reaching_def_lattice_t = reaching_def_set set_lattice_t
@@ -90,16 +92,14 @@ module ConstantPropagationLattice :
 module ConstantPropagationAnalysis :
   Analysis with type t = ConstantPropagationLattice.t
 
-module RDSolver :
-    module type of
-      DataflowSolver (ReachingDefinitionsAnalysis)
-
+module RDSolver : module type of DataflowSolver (ReachingDefinitionsAnalysis)
 module LVSolver : module type of DataflowSolver (LiveVarsAnalysis)
 
 module ConstantPropagationSolver :
-    module type of
-      DataflowSolver (ConstantPropagationAnalysis)
+    module type of DataflowSolver (ConstantPropagationAnalysis)
 
-val reaching_definitions_analysis : CFG.t -> RDSolver.state
-val live_vars_analysis : CFG.t -> LVSolver.state
-val constant_propagation_analysis : CFG.t -> ConstantPropagationSolver.state
+val reaching_definitions_analysis : CFG.t -> Basic_block.id -> RDSolver.state
+val live_vars_analysis : CFG.t -> Basic_block.id -> LVSolver.state
+
+val constant_propagation_analysis :
+  CFG.t -> Basic_block.id -> ConstantPropagationSolver.state
