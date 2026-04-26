@@ -6,14 +6,11 @@ type id = int [@@deriving compare, equal, hash, sexp]
 module Id : sig
   type t = id [@@deriving compare, equal, hash, sexp]
 
+  include Base.Comparator.S with type t := t
   include Hashtbl.Key.S with type t := t
 end
 
-type t = {
-  id : id;
-  label : string option;
-  instructions : Instruction.t list;
-}
+type t = { id : id; label : string option; instructions : Instruction.t list }
 [@@deriving compare, hash, sexp]
 
 val bbs_in_function : bril_ir_function -> t list

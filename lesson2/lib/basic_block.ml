@@ -4,7 +4,12 @@ open Bril
 type id = int [@@deriving compare, equal, hash, sexp]
 
 module Id = struct
-  type t = id [@@deriving compare, equal, hash, sexp]
+  module T = struct
+    type t = id [@@deriving compare, equal, hash, sexp]
+  end
+
+  include T
+  include Base.Comparator.Make (T)
 
   let compare = compare_id
   let equal = equal_id
@@ -13,11 +18,7 @@ module Id = struct
   let t_of_sexp = id_of_sexp
 end
 
-type t = {
-  id : id;
-  label : string option;
-  instructions : Instruction.t list;
-}
+type t = { id : id; label : string option; instructions : Instruction.t list }
 [@@deriving compare, hash, sexp]
 
 let next_id =
