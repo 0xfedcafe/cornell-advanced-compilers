@@ -116,6 +116,12 @@ val bril_misc_of_effect_instr :
 
 val bril_misc_of_value_instr : bril_value_instruction -> bril_misc_instr option
 
+type bril_ssa_instr =
+  | Get of { dst : string; typ : Bril_type.bril_type }
+  | Set of { dst : string; src : string }
+  | Undef of { dst : string; typ : Bril_type.bril_type }
+[@@deriving compare, hash, sexp]
+
 module Instruction : sig
   type t =
     | Arithm of bril_arithm_instr
@@ -125,6 +131,7 @@ module Instruction : sig
     | Control of bril_control_instr
     | Label of bril_label
     | Misc of bril_misc_instr
+    | SSA of bril_ssa_instr
   [@@deriving compare, hash, sexp]
 
   include Base.Comparator.S with type t := t

@@ -218,6 +218,12 @@ let bril_misc_of_effect_instr = function
   | { op = "nop"; args = None; funcs = None; labels = None } -> Some Nop
   | _ -> None
 
+type bril_ssa_instr =
+  | Get of { dst : string; typ : bril_type }
+  | Set of { dst : string; src : string }
+  | Undef of { dst : string; typ : bril_type }
+[@@deriving compare, hash, sexp]
+
 module Instruction = struct
   module T = struct
     type t =
@@ -228,6 +234,7 @@ module Instruction = struct
       | Control of bril_control_instr
       | Label of bril_label
       | Misc of bril_misc_instr
+      | SSA of bril_ssa_instr
     [@@deriving compare, hash, sexp]
   end
 
@@ -300,6 +307,13 @@ module Instruction = struct
             in
             Printf.sprintf "print%s" args_str
         | Nop -> "nop")
+    | SSA s -> (
+        match s with
+        | Get { dst; typ } ->
+            Printf.sprintf "%s: %s = get" dst (bril_type_to_string typ)
+        | Set { dst; src } -> Printf.sprintf "set %s %s" dst src
+        | Undef { dst; typ } ->
+            Printf.sprintf "%s: %s = undef" dst (bril_type_to_string typ))
 
   let from_instruction = function
     | BrilValueInstruction v -> (
@@ -348,6 +362,7 @@ module Instruction = struct
     | Const (Const { dst; _ }) -> Some dst
     | Misc (Identity { dst; _ }) -> Some dst
     | Control (Call { dst; _ }) -> dst
+    | SSA (Get { dst; _ } | Undef { dst; _ }) -> Some dst
     | _ -> None
 
   let replace_dst instr new_dst =
@@ -367,6 +382,8 @@ module Instruction = struct
     | Const (Const op) -> Const (Const { op with dst = new_dst })
     | Misc (Identity id) -> Misc (Identity { id with dst = new_dst })
     | Control (Call call) -> Control (Call { call with dst = Some new_dst })
+    | SSA (Get s) -> SSA (Get { s with dst = new_dst })
+    | SSA (Undef s) -> SSA (Undef { s with dst = new_dst })
     | _ -> instr
 
   let get_args = function
@@ -389,6 +406,7 @@ module Instruction = struct
     | Control (Call { arg = Some args; _ }) -> args
     | Misc (Identity { src; _ }) -> [ src ]
     | Misc (Print args) -> args
+    | SSA (Set { src; _ }) -> [ src ]
     | _ -> []
 
   let replace_args (instr : t) (f : string -> string) : t =
@@ -415,6 +433,7 @@ module Instruction = struct
     | Control (Branch br) -> Control (Branch { br with cond = f br.cond })
     | Control (Call call) ->
         Control (Call { call with arg = Option.map call.arg ~f:(List.map ~f) })
+    | SSA (Set s) -> SSA (Set { s with src = f s.src })
     | _ -> instr
 
   let string_of_op = function
@@ -438,5 +457,8 @@ module Instruction = struct
     | Misc (Identity _) -> "id"
     | Misc (Print _) -> "print"
     | Misc Nop -> "nop"
+    | SSA (Get _) -> "get"
+    | SSA (Set _) -> "set"
+    | SSA (Undef _) -> "undef"
     | Label _ -> failwith "Labels don't have ops"
 end

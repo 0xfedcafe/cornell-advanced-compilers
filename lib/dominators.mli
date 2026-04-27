@@ -5,6 +5,7 @@ module Dominators : sig
   val reverse_post_order : CFG.t -> Basic_block.id -> Basic_block.id list
 
   type doms_state
+  type dom_set = (Basic_block.id, Basic_block.Id.comparator_witness) Set.t
 
   val compute_dominators : CFG.t -> Basic_block.id -> doms_state
 
