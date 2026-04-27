@@ -1,0 +1,5 @@
+(executable
+ (public_name cornell_advanced_compilers_cs6120)
+ (name main)
+ (libraries cornell_advanced_compilers_cs6120)
+)

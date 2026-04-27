@@ -1,0 +1,19 @@
+(tests
+ (names
+  test_cornell_advanced_compilers_cs6120
+  test_dominators
+  test_frontiers
+  test_basic_block
+  test_bbs
+  test_empty_cfg
+  test_naming
+  )
+ (libraries cornell_advanced_compilers_cs6120 base stdio yojson)
+ (preprocess
+  (pps
+   ppx_deriving_yojson
+   ppx_compare
+   ppx_hash
+   ppx_sexp_conv
+   ppx_deriving.show))
+)
