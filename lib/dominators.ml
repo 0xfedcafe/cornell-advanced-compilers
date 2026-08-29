@@ -84,6 +84,19 @@ module Dominators = struct
             Hashtbl.set idoms ~key:bb_id ~data:idom);
     idoms
 
+  let dom_tree_children (cfg : CFG.t) (entry_id : Basic_block.id) :
+      (Basic_block.id, Basic_block.id list) Hashtbl.t =
+    let idoms = compute_idoms cfg entry_id in
+    let children = Hashtbl.create (module Basic_block.Id) in
+    Hashtbl.iter_keys idoms ~f:(fun bb_id ->
+        Hashtbl.set children ~key:bb_id ~data:[]);
+    Hashtbl.iteri idoms ~f:(fun ~key:bb_id ~data:idom ->
+        Option.iter idom ~f:(fun parent ->
+            let curr = Hashtbl.find_exn children parent in
+            Hashtbl.set children ~key:parent ~data:(bb_id :: curr)));
+    Hashtbl.map_inplace children ~f:(List.sort ~compare:Basic_block.compare_id);
+    children
+
   let dominates (state : doms_state) (a : Basic_block.id) (b : Basic_block.id) :
       bool =
     match Hashtbl.find state.out' b with
@@ -105,16 +118,17 @@ module Dominators = struct
           ~data:(Set.empty (module Basic_block.Id)));
 
     Hashtbl.iteri cfg.graph ~f:(fun ~key:a ~data:node ->
-        List.iter node.succs ~f:(fun b ->
+        List.iter node.succs ~f:(fun bb ->
             let a_doms =
               match Hashtbl.find_exn doms.out' a with
               | Top -> []
               | Set s -> Set.elements s
             in
             List.iter a_doms ~f:(fun d ->
-                if not (strictly_dominates doms d b) then
+                if not (strictly_dominates doms d bb) then
                   let current_frontier = Hashtbl.find_exn frontier d in
-                  Hashtbl.set frontier ~key:d ~data:(Set.add current_frontier b))));
+                  Hashtbl.set frontier ~key:d
+                    ~data:(Set.add current_frontier bb))));
 
     frontier
 end

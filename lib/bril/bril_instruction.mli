@@ -50,44 +50,49 @@ val bril_instruction_of_yojson :
 val bril_instruction_to_yojson : bril_instruction -> Yojson.Safe.t
 val bril_instruction_to_string : bril_instruction -> string
 
-type bin_op = { dst : string; src1 : string; src2 : string }
+type bin_op = {
+  dst : string;
+  typ : Bril_type.bril_type;
+  src1 : string;
+  src2 : string;
+}
 [@@deriving compare, hash, sexp]
 
-type un_op = { dst : string; src1 : string } [@@deriving compare, hash, sexp]
-
-type const_op = { dst : string; value : bril_immediate }
+type un_op = {
+  dst : string;
+  typ : Bril_type.bril_type option;
+  src1 : string;
+}
 [@@deriving compare, hash, sexp]
 
-type bril_arithm_instr =
-  | Add of bin_op
-  | Sub of bin_op
-  | Mul of bin_op
-  | Div of bin_op
+type const_op = {
+  dst : string;
+  typ : Bril_type.bril_type;
+  value : bril_immediate;
+}
 [@@deriving compare, hash, sexp]
 
-val bril_arithm_of_value_instr :
-  bril_value_instruction -> bril_arithm_instr option
+module Op : sig
+  type binary = Add | Sub | Mul | Div | Eq | Lt | Gt | Le | Ge | And | Or
+  [@@deriving compare, hash, sexp, enumerate]
 
-type bril_comp_instr =
-  | Eq of bin_op
-  | Lt of bin_op
-  | Gt of bin_op
-  | Le of bin_op
-  | Ge of bin_op
-[@@deriving compare, hash, sexp]
+  type unary = Not | Id [@@deriving compare, hash, sexp, enumerate]
 
-val bril_comp_of_value_instr : bril_value_instruction -> bril_comp_instr option
+  val binary_name : binary -> string
+  val unary_name : unary -> string
+  val binary_of_name : string -> binary option
+  val unary_of_name : string -> unary option
+  val binary_result_type : binary -> Bril_type.bril_type
+  val unary_result_type : unary -> Bril_type.bril_type option
+  val is_commutative : binary -> bool
+end
 
-type bril_logic_instr = Not of un_op | And of bin_op | Or of bin_op
-[@@deriving compare, hash, sexp]
+val binary_of_value_instr :
+  bril_value_instruction -> (Op.binary * bin_op) option
 
-val bril_logic_of_value_instr :
-  bril_value_instruction -> bril_logic_instr option
-
-type bril_const_instr = Const of const_op [@@deriving compare, hash, sexp]
-
-val bril_const_of_const_instr :
-  bril_const_instruction -> bril_const_instr option
+val unary_of_value_instr : bril_value_instruction -> (Op.unary * un_op) option
+val unary_of_effect_instr : bril_effect_instruction -> (Op.unary * un_op) option
+val const_of_const_instr : bril_const_instruction -> const_op option
 
 type bril_control_instr =
   | Jump of Bril_label.bril_label
@@ -96,7 +101,12 @@ type bril_control_instr =
       iftrue : Bril_label.bril_label;
       iffalse : Bril_label.bril_label;
     }
-  | Call of { name : string; arg : string list option; dst : string option }
+  | Call of {
+      name : string;
+      arg : string list option;
+      dst : string option;
+      typ : Bril_type.bril_type option;
+    }
   | Return of Bril_immediate.bril_immediate option
 
 val bril_control_of_effect_instr :
@@ -105,10 +115,7 @@ val bril_control_of_effect_instr :
 val bril_call_of_value_instr :
   bril_value_instruction -> bril_control_instr option
 
-type bril_misc_instr =
-  | Identity of { dst : string; src : string }
-  | Print of string list
-  | Nop
+type bril_misc_instr = Print of string list | Nop
 [@@deriving compare, hash, sexp]
 
 val bril_misc_of_effect_instr :
@@ -124,10 +131,9 @@ type bril_ssa_instr =
 
 module Instruction : sig
   type t =
-    | Arithm of bril_arithm_instr
-    | Comp of bril_comp_instr
-    | Logic of bril_logic_instr
-    | Const of bril_const_instr
+    | Binary of Op.binary * bin_op
+    | Unary of Op.unary * un_op
+    | Const of const_op
     | Control of bril_control_instr
     | Label of bril_label
     | Misc of bril_misc_instr
@@ -139,6 +145,7 @@ module Instruction : sig
   val to_string : t -> string
   val from_instruction : bril_instruction -> t
   val get_dest : t -> string option
+  val result_type : t -> Bril_type.bril_type option
   val replace_dst : t -> string -> t
   val replace_args : t -> (string -> string) -> t
   val get_args : t -> string list

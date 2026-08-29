@@ -2,16 +2,10 @@ open Base
 open Bril_instruction
 open Bril_immediate
 
-val eval_arithm :
-  bril_arithm_instr ->
-  (string -> bril_immediate option) ->
-  bril_immediate option
+val eval_binary :
+  Op.binary -> bril_immediate -> bril_immediate -> bril_immediate option
 
-val eval_comp :
-  bril_comp_instr -> (string -> bril_immediate option) -> bril_immediate option
-
-val eval_logic :
-  bril_logic_instr -> (string -> bril_immediate option) -> bril_immediate option
+val eval_unary : Op.unary -> bril_immediate -> bril_immediate option
 
 val evaluate_instruction :
   Instruction.t -> (string -> bril_immediate option) -> Instruction.t option

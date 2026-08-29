@@ -9,16 +9,17 @@ type lvn_value = LvnConst of string | LvnOp of string * string list
 
 let canonicalize_lvn_value (instr : Instruction.t) : lvn_value option =
   match instr with
-  | Const (Const op) ->
+  | Const op ->
       Some (LvnConst (Bril_immediate.bril_immediate_to_string op.value))
-  | Arithm (Add _) | Arithm (Mul _) | Comp (Eq _) | Logic (And _) | Logic (Or _)
-    ->
+  | Unary (Op.Id, _) -> None
+  | Binary (o, _) ->
       let args = get_args instr in
-      let sorted_args = List.sort ~compare:String.compare args in
-      Some (LvnOp (string_of_op instr, sorted_args))
-  | Arithm _ | Comp _ | Logic _ ->
-      let args = get_args instr in
+      let args =
+        if Op.is_commutative o then List.sort args ~compare:String.compare
+        else args
+      in
       Some (LvnOp (string_of_op instr, args))
+  | Unary _ -> Some (LvnOp (string_of_op instr, get_args instr))
   | _ -> None
 
 let lvn_pass (cfg : CFG.t) : unit =
@@ -72,9 +73,11 @@ let lvn_pass (cfg : CFG.t) : unit =
               in
 
               match canon_instr with
-              | Misc (Identity { src; _ }) ->
-                  Hashtbl.set env ~key:dest ~data:src;
-                  let id_instr = Misc (Identity { dst = dest_name; src }) in
+              | Unary (Op.Id, { src1; typ; _ }) ->
+                  Hashtbl.set env ~key:dest ~data:src1;
+                  let id_instr =
+                    Unary (Op.Id, { dst = dest_name; typ; src1 })
+                  in
                   id_instr :: acc
               | _ -> (
                   match canonicalize_lvn_value canon_instr with
@@ -83,7 +86,13 @@ let lvn_pass (cfg : CFG.t) : unit =
                       | Some canon ->
                           Hashtbl.set env ~key:dest ~data:canon;
                           let id_instr =
-                            Misc (Identity { dst = dest_name; src = canon })
+                            Unary
+                              (Op.Id,
+                                {
+                                  dst = dest_name;
+                                  typ = result_type canon_instr;
+                                  src1 = canon;
+                                })
                           in
                           id_instr :: acc
                       | None ->

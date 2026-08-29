@@ -11,6 +11,7 @@
   ppx_sexp_conv
   ppx_compare
   ppx_hash
+  ppx_enumerate
   ppx_deriving_yojson.runtime)
  (inline_tests)
  (preprocess
@@ -20,5 +21,6 @@
    ppx_deriving_yojson
    ppx_sexp_conv
    ppx_compare
-   ppx_hash))
+   ppx_hash
+   ppx_enumerate))
  )

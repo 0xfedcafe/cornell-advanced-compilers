@@ -31,6 +31,7 @@
    ppx_sexp_conv
    ppx_compare
    ppx_hash
+   ppx_enumerate
  )
  (tags
   ("Cornell Advanced Compilers" "ocaml implementation" "compiler construction" "programming languages")))

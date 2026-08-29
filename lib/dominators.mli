@@ -12,6 +12,9 @@ module Dominators : sig
   val compute_idoms :
     CFG.t -> Basic_block.id -> (Basic_block.id, Basic_block.id option) Hashtbl.t
 
+  val dom_tree_children :
+    CFG.t -> Basic_block.id -> (Basic_block.id, Basic_block.id list) Hashtbl.t
+
   val dominates : doms_state -> Basic_block.id -> Basic_block.id -> bool
 
   val strictly_dominates :

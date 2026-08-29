@@ -107,77 +107,86 @@ let bril_instruction_to_string = function
   | BrilValueInstruction v -> bril_value_instruction_to_string v
   | BrilEffectInstruction e -> bril_effect_instruction_to_string e
 
-type bin_op = { dst : string; src1 : string; src2 : string }
+type bin_op = { dst : string; typ : bril_type; src1 : string; src2 : string }
 [@@deriving compare, hash, sexp]
 
-type un_op = { dst : string; src1 : string } [@@deriving compare, hash, sexp]
-
-type const_op = { dst : string; value : bril_immediate }
+type un_op = { dst : string; typ : bril_type option; src1 : string }
 [@@deriving compare, hash, sexp]
 
-type bril_arithm_instr =
-  | Add of bin_op
-  | Sub of bin_op
-  | Mul of bin_op
-  | Div of bin_op
+type const_op = { dst : string; typ : bril_type; value : bril_immediate }
 [@@deriving compare, hash, sexp]
 
-let bril_arithm_of_value_instr = function
+module Op = struct
+  type binary = Add | Sub | Mul | Div | Eq | Lt | Gt | Le | Ge | And | Or
+  [@@deriving compare, hash, sexp, enumerate]
+
+  type unary = Not | Id [@@deriving compare, hash, sexp, enumerate]
+
+  let binary_name = function
+    | Add -> "add"
+    | Sub -> "sub"
+    | Mul -> "mul"
+    | Div -> "div"
+    | Eq -> "eq"
+    | Lt -> "lt"
+    | Gt -> "gt"
+    | Le -> "le"
+    | Ge -> "ge"
+    | And -> "and"
+    | Or -> "or"
+
+  let unary_name = function Not -> "not" | Id -> "id"
+
+  let by_name name all =
+    List.map all ~f:(fun o -> (name o, o)) |> Map.of_alist_exn (module String)
+
+  let binary_by_name = by_name binary_name all_of_binary
+  let unary_by_name = by_name unary_name all_of_unary
+  let binary_of_name s = Map.find binary_by_name s
+  let unary_of_name s = Map.find unary_by_name s
+
+  let binary_result_type = function
+    | Add | Sub | Mul | Div -> BrilType "int"
+    | Eq | Lt | Gt | Le | Ge | And | Or -> BrilType "bool"
+
+  let unary_result_type = function Not -> Some (BrilType "bool") | Id -> None
+
+  let is_commutative = function
+    | Add | Mul | Eq | And | Or -> true
+    | Sub | Div | Lt | Gt | Le | Ge -> false
+end
+
+let binary_of_value_instr = function
   (* TODO: Add typ checks *)
-  | { op = "add"; dest; typ = _; args = Some [ src1; src2 ]; _ } ->
-      Some (Add { dst = dest; src1; src2 })
-  | { op = "sub"; dest; typ = _; args = Some [ src1; src2 ]; _ } ->
-      Some (Sub { dst = dest; src1; src2 })
-  | { op = "mul"; dest; typ = _; args = Some [ src1; src2 ]; _ } ->
-      Some (Mul { dst = dest; src1; src2 })
-  | { op = "div"; dest; typ = _; args = Some [ src1; src2 ]; _ } ->
-      Some (Div { dst = dest; src1; src2 })
+  | { op; dest; typ; args = Some [ src1; src2 ]; _ } ->
+      Op.binary_of_name op
+      |> Option.map ~f:(fun o -> (o, { dst = dest; typ; src1; src2 }))
   | _ -> None
 
-type bril_comp_instr =
-  | Eq of bin_op
-  | Lt of bin_op
-  | Gt of bin_op
-  | Le of bin_op
-  | Ge of bin_op
-[@@deriving compare, hash, sexp]
-
-let bril_comp_of_value_instr = function
-  (* TODO: Add typ checks *)
-  | { op = "eq"; dest; typ = _; args = Some [ src1; src2 ]; _ } ->
-      Some (Eq { dst = dest; src1; src2 })
-  | { op = "lt"; dest; typ = _; args = Some [ src1; src2 ]; _ } ->
-      Some (Lt { dst = dest; src1; src2 })
-  | { op = "gt"; dest; typ = _; args = Some [ src1; src2 ]; _ } ->
-      Some (Gt { dst = dest; src1; src2 })
-  | { op = "le"; dest; typ = _; args = Some [ src1; src2 ]; _ } ->
-      Some (Le { dst = dest; src1; src2 })
-  | { op = "ge"; dest; typ = _; args = Some [ src1; src2 ]; _ } ->
-      Some (Ge { dst = dest; src1; src2 })
+let unary_of_value_instr = function
+  | { op; dest; typ; args = Some [ src1 ]; _ } ->
+      Op.unary_of_name op
+      |> Option.map ~f:(fun o -> (o, { dst = dest; typ = Some typ; src1 }))
   | _ -> None
 
-type bril_logic_instr = Not of un_op | And of bin_op | Or of bin_op
-[@@deriving compare, hash, sexp]
-
-let bril_logic_of_value_instr = function
-  | { op = "not"; dest; typ = _; args = Some [ src1 ]; _ } ->
-      Some (Not { dst = dest; src1 })
-  | { op = "and"; dest; typ = _; args = Some [ src1; src2 ]; _ } ->
-      Some (And { dst = dest; src1; src2 })
-  | { op = "or"; dest; typ = _; args = Some [ src1; src2 ]; _ } ->
-      Some (Or { dst = dest; src1; src2 })
+let unary_of_effect_instr = function
+  | { op = "id"; args = Some [ src1 ]; funcs = None; labels = None } ->
+      Some (Op.Id, { dst = src1; typ = None; src1 })
   | _ -> None
 
-type bril_const_instr = Const of const_op [@@deriving compare, hash, sexp]
-
-let bril_const_of_const_instr = function
-  | { op = "const"; dest; typ = _; value } -> Some (Const { dst = dest; value })
+let const_of_const_instr = function
+  | { op = "const"; dest; typ; value } -> Some { dst = dest; typ; value }
   | _ -> None
 
 type bril_control_instr =
   | Jump of bril_label
   | Branch of { cond : string; iftrue : bril_label; iffalse : bril_label }
-  | Call of { name : string; arg : string list option; dst : string option }
+  | Call of {
+      name : string;
+      arg : string list option;
+      dst : string option;
+      typ : bril_type option;
+    }
   | Return of bril_immediate option
 [@@deriving compare, hash, sexp]
 
@@ -188,31 +197,24 @@ let bril_control_of_effect_instr = function
         (Branch
            { cond; iftrue = { label = iftrue }; iffalse = { label = iffalse } })
   | { op = "call"; funcs = Some [ name ]; args; _ } ->
-      Some (Call { name; arg = args; dst = None })
+      Some (Call { name; arg = args; dst = None; typ = None })
   | { op = "ret"; args = _; _ } -> Some (Return None)
   | _ -> None
 
 let bril_call_of_value_instr = function
-  | { op = "call"; funcs = Some [ name ]; args; dest; _ } ->
-      Some (Call { name; arg = args; dst = Some dest })
+  | { op = "call"; funcs = Some [ name ]; args; dest; typ; _ } ->
+      Some (Call { name; arg = args; dst = Some dest; typ = Some typ })
   | _ -> None
 
-type bril_misc_instr =
-  | Identity of { dst : string; src : string }
-  | Print of string list
-  | Nop
+type bril_misc_instr = Print of string list | Nop
 [@@deriving compare, hash, sexp]
 
 let bril_misc_of_value_instr = function
-  | { op = "id"; dest = dest_v; typ = _; args = Some [ src ]; _ } ->
-      Some (Identity { dst = dest_v; src })
   | { op = "print"; dest = _; typ = _; args; _ } ->
       Some (Print (Option.value args ~default:[]))
   | _ -> None
 
 let bril_misc_of_effect_instr = function
-  | { op = "id"; args = Some [ src ]; funcs = None; labels = None } ->
-      Some (Identity { dst = src; src })
   | { op = "print"; args; funcs = None; labels = None } ->
       Some (Print (Option.value args ~default:[]))
   | { op = "nop"; args = None; funcs = None; labels = None } -> Some Nop
@@ -227,10 +229,9 @@ type bril_ssa_instr =
 module Instruction = struct
   module T = struct
     type t =
-      | Arithm of bril_arithm_instr
-      | Comp of bril_comp_instr
-      | Logic of bril_logic_instr
-      | Const of bril_const_instr
+      | Binary of Op.binary * bin_op
+      | Unary of Op.unary * un_op
+      | Const of const_op
       | Control of bril_control_instr
       | Label of bril_label
       | Misc of bril_misc_instr
@@ -242,47 +243,23 @@ module Instruction = struct
   include Base.Comparator.Make (T)
 
   let to_string = function
-    | Arithm a -> (
-        match a with
-        | Add { dst; src1; src2 } ->
-            Printf.sprintf "%s: int = add %s %s" dst src1 src2
-        | Sub { dst; src1; src2 } ->
-            Printf.sprintf "%s: int = sub %s %s" dst src1 src2
-        | Mul { dst; src1; src2 } ->
-            Printf.sprintf "%s: int = mul %s %s" dst src1 src2
-        | Div { dst; src1; src2 } ->
-            Printf.sprintf "%s: int = div %s %s" dst src1 src2)
-    | Comp c -> (
-        match c with
-        | Eq { dst; src1; src2 } ->
-            Printf.sprintf "eq %s = %s == %s" dst src1 src2
-        | Lt { dst; src1; src2 } ->
-            Printf.sprintf "lt %s = %s < %s" dst src1 src2
-        | Gt { dst; src1; src2 } ->
-            Printf.sprintf "gt %s = %s > %s" dst src1 src2
-        | Le { dst; src1; src2 } ->
-            Printf.sprintf "le %s = %s <= %s" dst src1 src2
-        | Ge { dst; src1; src2 } ->
-            Printf.sprintf "ge %s = %s >= %s" dst src1 src2)
-    | Logic l -> (
-        match l with
-        | Not { dst; src1 } -> Printf.sprintf "not %s = !%s" dst src1
-        | And { dst; src1; src2 } ->
-            Printf.sprintf "and %s = %s && %s" dst src1 src2
-        | Or { dst; src1; src2 } ->
-            Printf.sprintf "or %s = %s || %s" dst src1 src2)
-    | Const (Const { dst; value }) ->
-        let typ =
-          match value with BrilInt _ -> "int" | BrilBool _ -> "bool"
+    | Binary (o, { dst; typ; src1; src2 }) ->
+        Printf.sprintf "%s: %s = %s %s %s" dst (bril_type_to_string typ)
+          (Op.binary_name o) src1 src2
+    | Unary (o, { dst; typ; src1 }) ->
+        let typ_str =
+          match typ with Some t -> ": " ^ bril_type_to_string t | None -> ""
         in
+        Printf.sprintf "%s%s = %s %s" dst typ_str (Op.unary_name o) src1
+    | Const { dst; typ; value } ->
         let imm_str = bril_immediate_to_string value in
-        Printf.sprintf "%s: %s = const %s" dst typ imm_str
+        Printf.sprintf "%s: %s = const %s" dst (bril_type_to_string typ) imm_str
     | Control c -> (
         match c with
         | Jump lbl -> Printf.sprintf "jmp .%s" lbl.label
         | Branch { cond; iftrue; iffalse } ->
             Printf.sprintf "br %s .%s . %s" cond iftrue.label iffalse.label
-        | Call { name; arg; dst } ->
+        | Call { name; arg; dst; typ = _ } ->
             let args_str =
               match arg with
               | Some args when not (List.is_empty args) ->
@@ -297,16 +274,13 @@ module Instruction = struct
         | Return (Some arg) ->
             Printf.sprintf " ret %s" (bril_immediate_to_string arg))
     | Label l -> Printf.sprintf ".%s" l.label
-    | Misc m -> (
-        match m with
-        | Identity { dst; src } -> Printf.sprintf "id %s = %s" dst src
-        | Print args ->
-            let args_str =
-              if not (List.is_empty args) then " " ^ String.concat ~sep:" " args
-              else ""
-            in
-            Printf.sprintf "print%s" args_str
-        | Nop -> "nop")
+    | Misc (Print args) ->
+        let args_str =
+          if not (List.is_empty args) then " " ^ String.concat ~sep:" " args
+          else ""
+        in
+        Printf.sprintf "print%s" args_str
+    | Misc Nop -> "nop"
     | SSA s -> (
         match s with
         | Get { dst; typ } ->
@@ -315,146 +289,112 @@ module Instruction = struct
         | Undef { dst; typ } ->
             Printf.sprintf "%s: %s = undef" dst (bril_type_to_string typ))
 
+  let first_parse parsers instr what =
+    match List.find_map parsers ~f:(fun parse -> parse instr) with
+    | Some i -> i
+    | None -> failwith ("Invalid " ^ what ^ " instruction")
+
   let from_instruction = function
-    | BrilValueInstruction v -> (
-        match bril_arithm_of_value_instr v with
-        | Some a -> Arithm a
-        | None -> (
-            match bril_comp_of_value_instr v with
-            | Some c -> Comp c
-            | None -> (
-                match bril_logic_of_value_instr v with
-                | Some l -> Logic l
-                | None -> (
-                    match bril_call_of_value_instr v with
-                    | Some c -> Control c
-                    | None -> (
-                        match bril_misc_of_value_instr v with
-                        | Some m -> Misc m
-                        | None -> failwith "Invalid value instruction")))))
-    | BrilEffectInstruction e -> (
-        match bril_control_of_effect_instr e with
-        | Some c -> Control c
-        | None -> (
-            match bril_misc_of_effect_instr e with
-            | Some m -> Misc m
-            | None -> failwith "Invalid effect instruction"))
-    | BrilConstInstruction c -> (
-        let converted = bril_const_of_const_instr c in
-        match converted with
-        | Some const -> Const const
-        | None -> failwith "Invalid const instruction")
+    | BrilValueInstruction v ->
+        first_parse
+          [
+            (fun v ->
+              binary_of_value_instr v
+              |> Option.map ~f:(fun (o, args) -> Binary (o, args)));
+            (fun v ->
+              unary_of_value_instr v
+              |> Option.map ~f:(fun (o, args) -> Unary (o, args)));
+            (fun v ->
+              bril_call_of_value_instr v |> Option.map ~f:(fun c -> Control c));
+            (fun v ->
+              bril_misc_of_value_instr v |> Option.map ~f:(fun m -> Misc m));
+          ]
+          v "value"
+    | BrilEffectInstruction e ->
+        first_parse
+          [
+            (fun e ->
+              bril_control_of_effect_instr e
+              |> Option.map ~f:(fun c -> Control c));
+            (fun e ->
+              bril_misc_of_effect_instr e |> Option.map ~f:(fun m -> Misc m));
+            (fun e ->
+              unary_of_effect_instr e
+              |> Option.map ~f:(fun (o, args) -> Unary (o, args)));
+          ]
+          e "effect"
+    | BrilConstInstruction c ->
+        first_parse
+          [
+            (fun c ->
+              const_of_const_instr c |> Option.map ~f:(fun k -> Const k));
+          ]
+          c "const"
     | BrilLabel l -> Label l
 
   let get_dest = function
-    | Arithm (Add { dst; _ } | Sub { dst; _ } | Mul { dst; _ } | Div { dst; _ })
-      ->
+    | Binary (_, { dst; _ }) | Unary (_, { dst; _ }) | Const { dst; _ } ->
         Some dst
-    | Comp
-        ( Eq { dst; _ }
-        | Lt { dst; _ }
-        | Gt { dst; _ }
-        | Le { dst; _ }
-        | Ge { dst; _ } ) ->
-        Some dst
-    | Logic (Not { dst; _ }) -> Some dst
-    | Logic (And { dst; _ } | Or { dst; _ }) -> Some dst
-    | Const (Const { dst; _ }) -> Some dst
-    | Misc (Identity { dst; _ }) -> Some dst
     | Control (Call { dst; _ }) -> dst
     | SSA (Get { dst; _ } | Undef { dst; _ }) -> Some dst
-    | _ -> None
+    | Control (Jump _ | Branch _ | Return _) | Label _ | Misc _ | SSA (Set _) ->
+        None
 
-  let replace_dst instr new_dst =
+  let result_type = function
+    | Binary (_, { typ; _ }) | Const { typ; _ } -> Some typ
+    | Unary (_, { typ; _ }) | Control (Call { typ; _ }) -> typ
+    | SSA (Get { typ; _ } | Undef { typ; _ }) -> Some typ
+    | Control (Jump _ | Branch _ | Return _) | Label _ | Misc _ | SSA (Set _) ->
+        None
+
+  let replace_dst instr dst =
     match instr with
-    | Arithm (Add op) -> Arithm (Add { op with dst = new_dst })
-    | Arithm (Sub op) -> Arithm (Sub { op with dst = new_dst })
-    | Arithm (Mul op) -> Arithm (Mul { op with dst = new_dst })
-    | Arithm (Div op) -> Arithm (Div { op with dst = new_dst })
-    | Comp (Eq op) -> Comp (Eq { op with dst = new_dst })
-    | Comp (Lt op) -> Comp (Lt { op with dst = new_dst })
-    | Comp (Gt op) -> Comp (Gt { op with dst = new_dst })
-    | Comp (Le op) -> Comp (Le { op with dst = new_dst })
-    | Comp (Ge op) -> Comp (Ge { op with dst = new_dst })
-    | Logic (Not op) -> Logic (Not { op with dst = new_dst })
-    | Logic (And op) -> Logic (And { op with dst = new_dst })
-    | Logic (Or op) -> Logic (Or { op with dst = new_dst })
-    | Const (Const op) -> Const (Const { op with dst = new_dst })
-    | Misc (Identity id) -> Misc (Identity { id with dst = new_dst })
-    | Control (Call call) -> Control (Call { call with dst = Some new_dst })
-    | SSA (Get s) -> SSA (Get { s with dst = new_dst })
-    | SSA (Undef s) -> SSA (Undef { s with dst = new_dst })
-    | _ -> instr
+    | Binary (o, op) -> Binary (o, { op with dst })
+    | Unary (o, op) -> Unary (o, { op with dst })
+    | Const op -> Const { op with dst }
+    | Control (Call call) -> Control (Call { call with dst = Some dst })
+    | SSA (Get s) -> SSA (Get { s with dst })
+    | SSA (Undef s) -> SSA (Undef { s with dst })
+    | Control (Jump _ | Branch _ | Return _) | Label _ | Misc _ | SSA (Set _) ->
+        instr
 
   let get_args = function
-    | Arithm
-        ( Add { src1; src2; _ }
-        | Sub { src1; src2; _ }
-        | Mul { src1; src2; _ }
-        | Div { src1; src2; _ } ) ->
-        [ src1; src2 ]
-    | Comp
-        ( Eq { src1; src2; _ }
-        | Lt { src1; src2; _ }
-        | Gt { src1; src2; _ }
-        | Le { src1; src2; _ }
-        | Ge { src1; src2; _ } ) ->
-        [ src1; src2 ]
-    | Logic (Not { src1; _ }) -> [ src1 ]
-    | Logic (And { src1; src2; _ } | Or { src1; src2; _ }) -> [ src1; src2 ]
+    | Binary (_, { src1; src2; _ }) -> [ src1; src2 ]
+    | Unary (_, { src1; _ }) -> [ src1 ]
     | Control (Branch { cond; _ }) -> [ cond ]
-    | Control (Call { arg = Some args; _ }) -> args
-    | Misc (Identity { src; _ }) -> [ src ]
+    | Control (Call { arg; _ }) -> Option.value arg ~default:[]
     | Misc (Print args) -> args
     | SSA (Set { src; _ }) -> [ src ]
-    | _ -> []
+    | Const _ | Label _
+    | Misc Nop
+    | Control (Jump _ | Return _)
+    | SSA (Get _ | Undef _) ->
+        []
 
   let replace_args (instr : t) (f : string -> string) : t =
     match instr with
-    | Arithm (Add op) ->
-        Arithm (Add { op with src1 = f op.src1; src2 = f op.src2 })
-    | Arithm (Sub op) ->
-        Arithm (Sub { op with src1 = f op.src1; src2 = f op.src2 })
-    | Arithm (Mul op) ->
-        Arithm (Mul { op with src1 = f op.src1; src2 = f op.src2 })
-    | Arithm (Div op) ->
-        Arithm (Div { op with src1 = f op.src1; src2 = f op.src2 })
-    | Comp (Eq op) -> Comp (Eq { op with src1 = f op.src1; src2 = f op.src2 })
-    | Comp (Lt op) -> Comp (Lt { op with src1 = f op.src1; src2 = f op.src2 })
-    | Comp (Gt op) -> Comp (Gt { op with src1 = f op.src1; src2 = f op.src2 })
-    | Comp (Le op) -> Comp (Le { op with src1 = f op.src1; src2 = f op.src2 })
-    | Comp (Ge op) -> Comp (Ge { op with src1 = f op.src1; src2 = f op.src2 })
-    | Logic (Not op) -> Logic (Not { op with src1 = f op.src1 })
-    | Logic (And op) ->
-        Logic (And { op with src1 = f op.src1; src2 = f op.src2 })
-    | Logic (Or op) -> Logic (Or { op with src1 = f op.src1; src2 = f op.src2 })
-    | Misc (Identity id) -> Misc (Identity { id with src = f id.src })
+    | Binary (o, op) ->
+        Binary (o, { op with src1 = f op.src1; src2 = f op.src2 })
+    | Unary (o, op) -> Unary (o, { op with src1 = f op.src1 })
     | Misc (Print args) -> Misc (Print (List.map args ~f))
     | Control (Branch br) -> Control (Branch { br with cond = f br.cond })
     | Control (Call call) ->
         Control (Call { call with arg = Option.map call.arg ~f:(List.map ~f) })
     | SSA (Set s) -> SSA (Set { s with src = f s.src })
-    | _ -> instr
+    | Const _ | Label _
+    | Misc Nop
+    | Control (Jump _ | Return _)
+    | SSA (Get _ | Undef _) ->
+        instr
 
   let string_of_op = function
-    | Arithm (Add _) -> "add"
-    | Arithm (Sub _) -> "sub"
-    | Arithm (Mul _) -> "mul"
-    | Arithm (Div _) -> "div"
-    | Comp (Eq _) -> "eq"
-    | Comp (Lt _) -> "lt"
-    | Comp (Gt _) -> "gt"
-    | Comp (Le _) -> "le"
-    | Comp (Ge _) -> "ge"
-    | Logic (Not _) -> "not"
-    | Logic (And _) -> "and"
-    | Logic (Or _) -> "or"
-    | Const (Const _) -> "const"
+    | Binary (o, _) -> Op.binary_name o
+    | Unary (o, _) -> Op.unary_name o
+    | Const _ -> "const"
     | Control (Jump _) -> "jmp"
     | Control (Branch _) -> "br"
     | Control (Call _) -> "call"
     | Control (Return _) -> "ret"
-    | Misc (Identity _) -> "id"
     | Misc (Print _) -> "print"
     | Misc Nop -> "nop"
     | SSA (Get _) -> "get"
