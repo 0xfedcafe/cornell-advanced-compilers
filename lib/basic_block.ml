@@ -83,6 +83,23 @@ let bbs_in_function func =
   in
   List.rev named_bbs
 
+let is_generated_label ~func_name label =
+  let prefix = func_name ^ "_b" in
+  String.is_prefix label ~prefix
+  &&
+  let rest = String.subo label ~pos:(String.length prefix) in
+  (not (String.is_empty rest)) && String.for_all rest ~f:Char.is_digit
+
+let instrs_of_blocks ~func_name bbs =
+  List.concat_map bbs ~f:(fun bb ->
+      let label =
+        match bb.label with
+        | Some l when not (is_generated_label ~func_name l) ->
+            [ Instruction.Label { label = l } ]
+        | Some _ | None -> []
+      in
+      label @ bb.instructions)
+
 let gather_basic_blocks program =
   List.concat_map program.functions ~f:bbs_in_function
 

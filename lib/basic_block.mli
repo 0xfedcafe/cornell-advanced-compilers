@@ -15,5 +15,7 @@ type t = { id : id; label : string option; instructions : Instruction.t list }
 
 val bbs_in_function : bril_ir_function -> t list
 val gather_basic_blocks : bril_ir_program -> t list
+val is_generated_label : func_name:string -> string -> bool
+val instrs_of_blocks : func_name:string -> t list -> Instruction.t list
 
 type basic_block = t [@@deriving compare, hash, sexp]

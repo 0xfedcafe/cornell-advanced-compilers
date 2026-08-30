@@ -107,7 +107,7 @@ type bril_control_instr =
       dst : string option;
       typ : Bril_type.bril_type option;
     }
-  | Return of Bril_immediate.bril_immediate option
+  | Return of string option
 
 val bril_control_of_effect_instr :
   bril_effect_instruction -> bril_control_instr option
@@ -144,6 +144,7 @@ module Instruction : sig
 
   val to_string : t -> string
   val from_instruction : bril_instruction -> t
+  val to_instruction : t -> bril_instruction
   val get_dest : t -> string option
   val result_type : t -> Bril_type.bril_type option
   val replace_dst : t -> string -> t

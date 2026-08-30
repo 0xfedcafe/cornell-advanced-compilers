@@ -187,7 +187,7 @@ type bril_control_instr =
       dst : string option;
       typ : bril_type option;
     }
-  | Return of bril_immediate option
+  | Return of string option
 [@@deriving compare, hash, sexp]
 
 let bril_control_of_effect_instr = function
@@ -198,7 +198,8 @@ let bril_control_of_effect_instr = function
            { cond; iftrue = { label = iftrue }; iffalse = { label = iffalse } })
   | { op = "call"; funcs = Some [ name ]; args; _ } ->
       Some (Call { name; arg = args; dst = None; typ = None })
-  | { op = "ret"; args = _; _ } -> Some (Return None)
+  | { op = "ret"; args = Some [ v ]; _ } -> Some (Return (Some v))
+  | { op = "ret"; _ } -> Some (Return None)
   | _ -> None
 
 let bril_call_of_value_instr = function
@@ -225,6 +226,18 @@ type bril_ssa_instr =
   | Set of { dst : string; src : string }
   | Undef of { dst : string; typ : bril_type }
 [@@deriving compare, hash, sexp]
+
+let bril_ssa_of_value_instr = function
+  | { op = "get"; dest; typ; args = None | Some []; _ } ->
+      Some (Get { dst = dest; typ })
+  | { op = "undef"; dest; typ; args = None | Some []; _ } ->
+      Some (Undef { dst = dest; typ })
+  | _ -> None
+
+let bril_ssa_of_effect_instr = function
+  | { op = "set"; args = Some [ dst; src ]; funcs = None; labels = None } ->
+      Some (Set { dst; src })
+  | _ -> None
 
 module Instruction = struct
   module T = struct
@@ -270,9 +283,8 @@ module Instruction = struct
               match dst with Some d -> Printf.sprintf " %s = " d | None -> ""
             in
             Printf.sprintf "call %s@%s(%s)" dst_str name args_str
-        | Return None -> " ret "
-        | Return (Some arg) ->
-            Printf.sprintf " ret %s" (bril_immediate_to_string arg))
+        | Return None -> "ret"
+        | Return (Some v) -> Printf.sprintf "ret %s" v)
     | Label l -> Printf.sprintf ".%s" l.label
     | Misc (Print args) ->
         let args_str =
@@ -305,6 +317,8 @@ module Instruction = struct
               unary_of_value_instr v
               |> Option.map ~f:(fun (o, args) -> Unary (o, args)));
             (fun v ->
+              bril_ssa_of_value_instr v |> Option.map ~f:(fun s -> SSA s));
+            (fun v ->
               bril_call_of_value_instr v |> Option.map ~f:(fun c -> Control c));
             (fun v ->
               bril_misc_of_value_instr v |> Option.map ~f:(fun m -> Misc m));
@@ -316,6 +330,8 @@ module Instruction = struct
             (fun e ->
               bril_control_of_effect_instr e
               |> Option.map ~f:(fun c -> Control c));
+            (fun e ->
+              bril_ssa_of_effect_instr e |> Option.map ~f:(fun s -> SSA s));
             (fun e ->
               bril_misc_of_effect_instr e |> Option.map ~f:(fun m -> Misc m));
             (fun e ->
@@ -331,6 +347,105 @@ module Instruction = struct
           ]
           c "const"
     | BrilLabel l -> Label l
+
+  let to_instruction = function
+    | Binary (o, { dst; typ; src1; src2 }) ->
+        BrilValueInstruction
+          {
+            op = Op.binary_name o;
+            dest = dst;
+            typ;
+            args = Some [ src1; src2 ];
+            funcs = None;
+            labels = None;
+          }
+    | Unary (o, { dst; typ = Some typ; src1 }) ->
+        BrilValueInstruction
+          {
+            op = Op.unary_name o;
+            dest = dst;
+            typ;
+            args = Some [ src1 ];
+            funcs = None;
+            labels = None;
+          }
+    | Unary (o, { typ = None; src1; _ }) ->
+        BrilEffectInstruction
+          {
+            op = Op.unary_name o;
+            args = Some [ src1 ];
+            funcs = None;
+            labels = None;
+          }
+    | Const { dst; typ; value } ->
+        BrilConstInstruction { op = "const"; dest = dst; typ; value }
+    | Control (Jump lbl) ->
+        BrilEffectInstruction
+          {
+            op = "jmp";
+            args = None;
+            funcs = None;
+            labels = Some [ lbl.label ];
+          }
+    | Control (Branch { cond; iftrue; iffalse }) ->
+        BrilEffectInstruction
+          {
+            op = "br";
+            args = Some [ cond ];
+            funcs = None;
+            labels = Some [ iftrue.label; iffalse.label ];
+          }
+    | Control (Call { name; arg; dst = Some dst; typ = Some typ }) ->
+        BrilValueInstruction
+          {
+            op = "call";
+            dest = dst;
+            typ;
+            args = arg;
+            funcs = Some [ name ];
+            labels = None;
+          }
+    | Control (Call { name; arg; _ }) ->
+        BrilEffectInstruction
+          { op = "call"; args = arg; funcs = Some [ name ]; labels = None }
+    | Control (Return v) ->
+        BrilEffectInstruction
+          {
+            op = "ret";
+            args = Option.map v ~f:(fun v -> [ v ]);
+            funcs = None;
+            labels = None;
+          }
+    | Label l -> BrilLabel l
+    | Misc (Print args) ->
+        BrilEffectInstruction
+          { op = "print"; args = Some args; funcs = None; labels = None }
+    | Misc Nop ->
+        BrilEffectInstruction
+          { op = "nop"; args = None; funcs = None; labels = None }
+    | SSA (Get { dst; typ }) ->
+        BrilValueInstruction
+          {
+            op = "get";
+            dest = dst;
+            typ;
+            args = None;
+            funcs = None;
+            labels = None;
+          }
+    | SSA (Undef { dst; typ }) ->
+        BrilValueInstruction
+          {
+            op = "undef";
+            dest = dst;
+            typ;
+            args = None;
+            funcs = None;
+            labels = None;
+          }
+    | SSA (Set { dst; src }) ->
+        BrilEffectInstruction
+          { op = "set"; args = Some [ dst; src ]; funcs = None; labels = None }
 
   let get_dest = function
     | Binary (_, { dst; _ }) | Unary (_, { dst; _ }) | Const { dst; _ } ->
@@ -365,9 +480,10 @@ module Instruction = struct
     | Control (Call { arg; _ }) -> Option.value arg ~default:[]
     | Misc (Print args) -> args
     | SSA (Set { src; _ }) -> [ src ]
+    | Control (Return (Some v)) -> [ v ]
     | Const _ | Label _
     | Misc Nop
-    | Control (Jump _ | Return _)
+    | Control (Jump _ | Return None)
     | SSA (Get _ | Undef _) ->
         []
 
@@ -381,9 +497,10 @@ module Instruction = struct
     | Control (Call call) ->
         Control (Call { call with arg = Option.map call.arg ~f:(List.map ~f) })
     | SSA (Set s) -> SSA (Set { s with src = f s.src })
+    | Control (Return (Some v)) -> Control (Return (Some (f v)))
     | Const _ | Label _
     | Misc Nop
-    | Control (Jump _ | Return _)
+    | Control (Jump _ | Return None)
     | SSA (Get _ | Undef _) ->
         instr
 

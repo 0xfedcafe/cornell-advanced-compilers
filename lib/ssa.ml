@@ -234,5 +234,45 @@ module Ssa = struct
     rename func cfg entry_id var_map gets_per_block;
     cfg
 
-  let convert_from_ssa (_cfg : CFG.t) : CFG.t = failwith "todo"
+  let convert_from_ssa (cfg : CFG.t) : CFG.t =
+    let shadow_name dst = Printf.sprintf "%s.shadow" dst in
+
+    let types = Hashtbl.create (module String) in
+    let gather_types () =
+      Hashtbl.iter cfg.nodes ~f:(fun bb ->
+          List.iter bb.instructions ~f:(fun instr ->
+              match instr with
+              | Instruction.SSA (Get { dst; typ }) ->
+                  Hashtbl.set types ~key:dst ~data:typ
+              | _ -> ()))
+    in
+
+    let replace_sets_and_gets () =
+      List.iter (Hashtbl.keys cfg.nodes) ~f:(fun bb_id ->
+          let bb = Hashtbl.find_exn cfg.nodes bb_id in
+          let instructions =
+            List.filter_map bb.instructions ~f:(fun instr ->
+                match instr with
+                | Instruction.SSA (Set { dst; src }) ->
+                    Hashtbl.find types dst
+                    |> Option.map ~f:(fun typ ->
+                        Instruction.Unary
+                          ( Op.Id,
+                            {
+                              dst = shadow_name dst;
+                              typ = Some typ;
+                              src1 = src;
+                            } ))
+                | Instruction.SSA (Get { dst; typ }) ->
+                    Some
+                      (Instruction.Unary
+                         (Op.Id, { dst; typ = Some typ; src1 = shadow_name dst }))
+                | _ -> Some instr)
+          in
+          CFG.replace_node cfg ~id:bb_id ~new_bb:{ bb with instructions })
+    in
+
+    gather_types ();
+    replace_sets_and_gets ();
+    cfg
 end

@@ -27,6 +27,26 @@ let from_tokens (prog : bril_program) : bril_ir_program =
   in
   { functions = ir_functions }
 
+let to_tokens (prog : bril_ir_program) : bril_program =
+  let functions =
+    List.map prog.functions ~f:(fun f ->
+        let instrs = List.map f.instrs ~f:Instruction.to_instruction in
+        ({ name = f.name; args = f.args; typ = f.typ; instrs } : bril_function))
+  in
+  { functions }
+
+let rec drop_nulls (json : Yojson.Safe.t) : Yojson.Safe.t =
+  match json with
+  | `Assoc fields ->
+      `Assoc
+        (List.filter_map fields ~f:(fun (k, v) ->
+             match v with `Null -> None | _ -> Some (k, drop_nulls v)))
+  | `List items -> `List (List.map items ~f:drop_nulls)
+  | other -> other
+
+let bril_ir_program_to_json (prog : bril_ir_program) : Yojson.Safe.t =
+  drop_nulls (bril_program_to_yojson (to_tokens prog))
+
 let bril_ir_program_to_string { functions } =
   String.concat ~sep:"\n\n"
     (List.map ~f:Bril_function.bril_ir_function_to_string functions)
