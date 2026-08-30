@@ -83,7 +83,7 @@ module BaseSolver (A : Analysis) = struct
     let in' =
       if x = entry_id then A.boundary_state
       else
-        let p = preds cfg x in
+        let p = preds cfg x |> List.filter ~f:(Hashtbl.mem s.out') in
         if List.is_empty p then A.boundary_state
         else
           List.fold_left p ~init:A.top ~f:(fun acc pred ->

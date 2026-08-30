@@ -67,8 +67,6 @@ module Ssa = struct
                   in
 
                   if not (Set.mem gets_in_block var) then begin
-                    (* add to set *)
-                    (* add after label *)
                     let bb = Hashtbl.find_exn cfg.nodes df_block in
                     let typ =
                       match var_info.typ with

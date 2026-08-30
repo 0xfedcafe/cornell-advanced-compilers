@@ -71,6 +71,14 @@ let bbs_in_function func =
           build_bbs rest None [] bbs'
         else build_bbs rest curr_lbl curr_instrs' bbs
   in
+  let jump_targets =
+    List.concat_map func.instrs ~f:(fun instr ->
+        match instr with
+        | Instruction.Control (Jump l) -> [ l.label ]
+        | Instruction.Control (Branch { iftrue; iffalse; _ }) ->
+            [ iftrue.label; iffalse.label ]
+        | _ -> [])
+  in
   let raw_bbs = build_bbs func.instrs None [] [] |> List.rev in
   let _, named_bbs =
     List.fold_left raw_bbs ~init:(1, []) ~f:(fun (idx, acc) bb ->
@@ -81,7 +89,16 @@ let bbs_in_function func =
               { bb with label = Some (func.name ^ "_b" ^ Int.to_string idx) }
               :: acc ))
   in
-  List.rev named_bbs
+  let blocks = List.rev named_bbs in
+  let entry_is_target =
+    match blocks with
+    | { label = Some l; _ } :: _ ->
+        List.mem jump_targets l ~equal:String.equal
+    | _ -> false
+  in
+  if entry_is_target then
+    { id = next_id (); label = None; instructions = [] } :: blocks
+  else blocks
 
 let is_generated_label ~func_name label =
   let prefix = func_name ^ "_b" in

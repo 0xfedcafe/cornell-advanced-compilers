@@ -118,17 +118,17 @@ module Dominators = struct
           ~data:(Set.empty (module Basic_block.Id)));
 
     Hashtbl.iteri cfg.graph ~f:(fun ~key:a ~data:node ->
-        List.iter node.succs ~f:(fun bb ->
-            let a_doms =
-              match Hashtbl.find_exn doms.out' a with
-              | Top -> []
-              | Set s -> Set.elements s
-            in
-            List.iter a_doms ~f:(fun d ->
-                if not (strictly_dominates doms d bb) then
-                  let current_frontier = Hashtbl.find_exn frontier d in
-                  Hashtbl.set frontier ~key:d
-                    ~data:(Set.add current_frontier bb))));
+        Hashtbl.find doms.out' a
+        |> Option.iter ~f:(fun a_out ->
+               let a_doms =
+                 match a_out with Top -> [] | Set s -> Set.elements s
+               in
+               List.iter node.succs ~f:(fun bb ->
+                   List.iter a_doms ~f:(fun d ->
+                       if not (strictly_dominates doms d bb) then
+                         let current_frontier = Hashtbl.find_exn frontier d in
+                         Hashtbl.set frontier ~key:d
+                           ~data:(Set.add current_frontier bb)))));
 
     frontier
 end
